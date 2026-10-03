@@ -1,0 +1,179 @@
+import { useState } from 'react';
+import { useStore } from '../store';
+import { Worker } from '../types';
+import { Plus, Pencil, Trash2, X, Search } from 'lucide-react';
+
+export default function Workers() {
+  const { workers, partners, addWorker, updateWorker, deleteWorker, shifts, calcHours } = useStore();
+  const [showForm, setShowForm] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [search, setSearch] = useState('');
+  const [form, setForm] = useState<Omit<Worker, 'id'>>({
+    number: workers.length + 1, full_name: '', age: 0, phone: '', inviter: 'Я', start_date: ''
+  });
+
+  const inviterOptions = ['Я', ...partners.map((p) => p.full_name)];
+
+  const resetForm = () => {
+    setForm({ number: workers.length + 1, full_name: '', age: 0, phone: '', inviter: 'Я', start_date: '' });
+    setEditingId(null);
+    setShowForm(false);
+  };
+
+  const handleEdit = (w: Worker) => {
+    setForm({ number: w.number, full_name: w.full_name, age: w.age, phone: w.phone, inviter: w.inviter, start_date: w.start_date });
+    setEditingId(w.id);
+    setShowForm(true);
+  };
+
+  const handleSave = () => {
+    if (!form.full_name.trim()) return;
+    if (editingId) {
+      updateWorker(editingId, form);
+    } else {
+      addWorker(form);
+    }
+    resetForm();
+  };
+
+  const handleDelete = (id: string) => {
+    if (confirm('Удалить рабочего? Связанные смены останутся.')) {
+      deleteWorker(id);
+    }
+  };
+
+  const filtered = workers.filter((w) =>
+    w.full_name.toLowerCase().includes(search.toLowerCase()) ||
+    w.phone.includes(search)
+  );
+
+  const getWorkerStats = (workerId: string) => {
+    const ws = shifts.filter((s) => s.worker_id === workerId);
+    return {
+      shifts: ws.length,
+      hours: ws.reduce((sum, s) => sum + calcHours(s), 0),
+      earned: ws.reduce((sum, s) => sum + s.salary, 0)
+    };
+  };
+
+  return (
+    <div className="p-6 space-y-4">
+      <div className="flex items-center justify-between">
+        <h2 className="text-2xl font-bold text-gray-800">👷 Рабочие</h2>
+        <button onClick={() => { resetForm(); setShowForm(true); }}
+          className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition">
+          <Plus size={18} /> Добавить
+        </button>
+      </div>
+
+      <div className="relative">
+        <Search size={18} className="absolute left-3 top-2.5 text-gray-400" />
+        <input type="text" placeholder="Поиск по имени или телефону..." value={search} onChange={(e) => setSearch(e.target.value)}
+          className="w-full pl-10 pr-4 py-2 border rounded-lg" />
+      </div>
+
+      {/* Form Modal */}
+      {showForm && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-xl p-6 w-full max-w-md shadow-2xl">
+            <div className="flex justify-between items-center mb-4">
+              <h3 className="text-lg font-bold">{editingId ? 'Редактировать' : 'Новый рабочий'}</h3>
+              <button onClick={resetForm}><X size={20} /></button>
+            </div>
+            <div className="space-y-3">
+              <div>
+                <label className="text-sm text-gray-600">ФИО *</label>
+                <input type="text" value={form.full_name} onChange={(e) => setForm({ ...form, full_name: e.target.value })}
+                  className="w-full border rounded-lg px-3 py-2" placeholder="Иванов Иван Иванович" />
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-sm text-gray-600">№</label>
+                  <input type="number" value={form.number} onChange={(e) => setForm({ ...form, number: +e.target.value })}
+                    className="w-full border rounded-lg px-3 py-2" />
+                </div>
+                <div>
+                  <label className="text-sm text-gray-600">Возраст</label>
+                  <input type="number" value={form.age} onChange={(e) => setForm({ ...form, age: +e.target.value })}
+                    className="w-full border rounded-lg px-3 py-2" />
+                </div>
+              </div>
+              <div>
+                <label className="text-sm text-gray-600">Телефон</label>
+                <input type="text" value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })}
+                  className="w-full border rounded-lg px-3 py-2" placeholder="+7..." />
+              </div>
+              <div>
+                <label className="text-sm text-gray-600">Кто пригласил</label>
+                <select value={form.inviter} onChange={(e) => setForm({ ...form, inviter: e.target.value })}
+                  className="w-full border rounded-lg px-3 py-2">
+                  {inviterOptions.map((o) => <option key={o} value={o}>{o}</option>)}
+                </select>
+              </div>
+              <div>
+                <label className="text-sm text-gray-600">Дата начала</label>
+                <input type="date" value={form.start_date} onChange={(e) => setForm({ ...form, start_date: e.target.value })}
+                  className="w-full border rounded-lg px-3 py-2" />
+              </div>
+            </div>
+            <div className="flex gap-3 mt-5">
+              <button onClick={handleSave} className="flex-1 bg-blue-600 text-white py-2 rounded-lg hover:bg-blue-700">
+                {editingId ? 'Сохранить' : 'Добавить'}
+              </button>
+              <button onClick={resetForm} className="flex-1 border py-2 rounded-lg hover:bg-gray-50">Отмена</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Table */}
+      <div className="bg-white rounded-xl border shadow-sm overflow-hidden">
+        <table className="w-full text-sm">
+          <thead className="bg-gray-50">
+            <tr className="text-left text-gray-600">
+              <th className="px-4 py-3">№</th>
+              <th className="px-4 py-3">ФИО</th>
+              <th className="px-4 py-3">Возраст</th>
+              <th className="px-4 py-3">Телефон</th>
+              <th className="px-4 py-3">Пригласил</th>
+              <th className="px-4 py-3">Дата начала</th>
+              <th className="px-4 py-3">Смен</th>
+              <th className="px-4 py-3">Заработок</th>
+              <th className="px-4 py-3">Действия</th>
+            </tr>
+          </thead>
+          <tbody>
+            {filtered.map((w) => {
+              const stats = getWorkerStats(w.id);
+              return (
+                <tr key={w.id} className="border-t hover:bg-gray-50">
+                  <td className="px-4 py-2">{w.number}</td>
+                  <td className="px-4 py-2 font-medium">{w.full_name}</td>
+                  <td className="px-4 py-2">{w.age}</td>
+                  <td className="px-4 py-2">{w.phone}</td>
+                  <td className="px-4 py-2">
+                    <span className={`px-2 py-0.5 rounded text-xs ${w.inviter === 'Я' ? 'bg-blue-100 text-blue-700' : 'bg-green-100 text-green-700'}`}>
+                      {w.inviter}
+                    </span>
+                  </td>
+                  <td className="px-4 py-2">{w.start_date}</td>
+                  <td className="px-4 py-2">{stats.shifts}</td>
+                  <td className="px-4 py-2 font-medium">{new Intl.NumberFormat('ru-RU').format(stats.earned)} ₽</td>
+                  <td className="px-4 py-2">
+                    <div className="flex gap-1">
+                      <button onClick={() => handleEdit(w)} className="p-1.5 hover:bg-blue-50 rounded text-blue-600"><Pencil size={16} /></button>
+                      <button onClick={() => handleDelete(w.id)} className="p-1.5 hover:bg-red-50 rounded text-red-600"><Trash2 size={16} /></button>
+                    </div>
+                  </td>
+                </tr>
+              );
+            })}
+            {filtered.length === 0 && (
+              <tr><td colSpan={9} className="text-center py-8 text-gray-400">Нет рабочих. Добавьте первого!</td></tr>
+            )}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
