@@ -1,12 +1,16 @@
 import { useState, useMemo } from 'react';
 import { useStore } from '../store';
-import { WorkObject } from '../types';
+import { WorkObject, SortDirection } from '../types';
 import { Plus, Pencil, Trash2, X } from 'lucide-react';
+import DetailModal from './DetailModal';
 
 export default function Objects() {
   const { objects, shifts, addObject, updateObject, deleteObject, calcHours, calcPartnerShare } = useStore();
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [sortField, setSortField] = useState<string>('number');
+  const [sortDir, setSortDir] = useState<SortDirection>('asc');
+  const [detailId, setDetailId] = useState<string | null>(null);
   const [form, setForm] = useState<Omit<WorkObject, 'id'>>({ number: objects.length + 1, name: '', direction: '', address: '' });
 
   const resetForm = () => {
@@ -38,8 +42,22 @@ export default function Objects() {
     }
   };
 
+  const toggleSort = (field: string) => {
+    if (sortField === field) {
+      setSortDir(sortDir === 'asc' ? 'desc' : sortDir === 'desc' ? null : 'asc');
+    } else {
+      setSortField(field);
+      setSortDir('asc');
+    }
+  };
+
+  const SortIcon = ({ field }: { field: string }) => {
+    if (sortField !== field || !sortDir) return <span className="text-gray-300 ml-1">⇅</span>;
+    return <span className="ml-1">{sortDir === 'asc' ? '↑' : '↓'}</span>;
+  };
+
   const stats = useMemo(() => {
-    return objects.map((o) => {
+    let result = objects.map((o) => {
       const objShifts = shifts.filter((s) => s.object_id === o.id);
       const workerIds = new Set(objShifts.map((s) => s.worker_id));
       const dates = objShifts.map((s) => s.date).sort();
@@ -55,7 +73,29 @@ export default function Objects() {
         my_earned: objShifts.reduce((sum, s) => sum + s.my_share - calcPartnerShare(s), 0)
       };
     });
-  }, [objects, shifts, calcHours, calcPartnerShare]);
+
+    if (sortField && sortDir) {
+      result = [...result].sort((a, b) => {
+        let aVal: any, bVal: any;
+        switch (sortField) {
+          case 'number': aVal = a.number; bVal = b.number; break;
+          case 'name': aVal = a.name; bVal = b.name; break;
+          case 'direction': aVal = a.direction; bVal = b.direction; break;
+          case 'shifts_worked': aVal = a.shifts_worked; bVal = b.shifts_worked; break;
+          case 'total_hours': aVal = a.total_hours; bVal = b.total_hours; break;
+          case 'workers_earned': aVal = a.workers_earned; bVal = b.workers_earned; break;
+          case 'my_earned': aVal = a.my_earned; bVal = b.my_earned; break;
+          default: aVal = a.number; bVal = b.number;
+        }
+        if (typeof aVal === 'string') {
+          return sortDir === 'asc' ? aVal.localeCompare(bVal) : bVal.localeCompare(aVal);
+        }
+        return sortDir === 'asc' ? aVal - bVal : bVal - aVal;
+      });
+    }
+
+    return result;
+  }, [objects, shifts, calcHours, calcPartnerShare, sortField, sortDir]);
 
   return (
     <div className="p-6 space-y-4">
@@ -78,12 +118,12 @@ export default function Objects() {
               <div>
                 <label className="text-sm text-gray-600">Название *</label>
                 <input type="text" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })}
-                  className="w-full border rounded-lg px-3 py-2" placeholder="СКлад №5" />
+                  className="w-full border rounded-lg px-3 py-2" placeholder="Склад №5" />
               </div>
               <div>
                 <label className="text-sm text-gray-600">№</label>
-                <input type="number" value={form.number} onChange={(e) => setForm({ ...form, number: +e.target.value })}
-                  className="w-full border rounded-lg px-3 py-2" />
+                <input type="number" value={form.number || ''} onChange={(e) => setForm({ ...form, number: +e.target.value })}
+                  className="w-full border rounded-lg px-3 py-2" placeholder="Авто" />
               </div>
               <div>
                 <label className="text-sm text-gray-600">Направление</label>
@@ -106,21 +146,25 @@ export default function Objects() {
         </div>
       )}
 
+      {detailId && (
+        <DetailModal type="object" id={detailId} onClose={() => setDetailId(null)} />
+      )}
+
       <div className="bg-white rounded-xl border shadow-sm overflow-x-auto">
         <table className="w-full text-sm">
           <thead className="bg-gray-50">
             <tr className="text-left text-gray-600">
-              <th className="px-4 py-3">№</th>
-              <th className="px-4 py-3">Название</th>
-              <th className="px-4 py-3">Направление</th>
+              <th className="px-4 py-3 cursor-pointer hover:text-blue-600" onClick={() => toggleSort('number')}>№ <SortIcon field="number" /></th>
+              <th className="px-4 py-3 cursor-pointer hover:text-blue-600" onClick={() => toggleSort('name')}>Название <SortIcon field="name" /></th>
+              <th className="px-4 py-3 cursor-pointer hover:text-blue-600" onClick={() => toggleSort('direction')}>Направление <SortIcon field="direction" /></th>
               <th className="px-4 py-3">Адрес</th>
               <th className="px-4 py-3">Период</th>
               <th className="px-4 py-3">Участников</th>
               <th className="px-4 py-3">Дней</th>
-              <th className="px-4 py-3">Смен</th>
-              <th className="px-4 py-3">Часы</th>
-              <th className="px-4 py-3">ЗП рабочих</th>
-              <th className="px-4 py-3">Мой доход</th>
+              <th className="px-4 py-3 cursor-pointer hover:text-blue-600" onClick={() => toggleSort('shifts_worked')}>Смен <SortIcon field="shifts_worked" /></th>
+              <th className="px-4 py-3 cursor-pointer hover:text-blue-600" onClick={() => toggleSort('total_hours')}>Часы <SortIcon field="total_hours" /></th>
+              <th className="px-4 py-3 cursor-pointer hover:text-blue-600" onClick={() => toggleSort('workers_earned')}>ЗП рабочих <SortIcon field="workers_earned" /></th>
+              <th className="px-4 py-3 cursor-pointer hover:text-blue-600" onClick={() => toggleSort('my_earned')}>Мой доход <SortIcon field="my_earned" /></th>
               <th className="px-4 py-3">Действия</th>
             </tr>
           </thead>
@@ -128,7 +172,11 @@ export default function Objects() {
             {stats.map((o) => (
               <tr key={o.id} className="border-t hover:bg-gray-50">
                 <td className="px-4 py-2">{o.number}</td>
-                <td className="px-4 py-2 font-medium">{o.name}</td>
+                <td className="px-4 py-2">
+                  <button onClick={() => setDetailId(o.id)} className="font-medium text-left hover:text-blue-600 hover:underline">
+                    {o.name}
+                  </button>
+                </td>
                 <td className="px-4 py-2">{o.direction}</td>
                 <td className="px-4 py-2 text-gray-500">{o.address}</td>
                 <td className="px-4 py-2 text-xs">{o.start && o.end ? `${o.start} — ${o.end}` : '—'}</td>

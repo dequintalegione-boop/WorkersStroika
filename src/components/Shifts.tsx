@@ -1,8 +1,9 @@
 import { useState, useMemo } from 'react';
 import { useStore } from '../store';
-import { Shift } from '../types';
-import { Plus, Pencil, Trash2, X, Search, Filter } from 'lucide-react';
+import { Shift, SortDirection } from '../types';
+import { Plus, Pencil, Trash2, X, Search, Filter, Users } from 'lucide-react';
 import { format } from 'date-fns';
+import DetailModal from './DetailModal';
 
 function formatMinutes(min: number): string {
   const h = Math.floor(min / 60);
@@ -14,10 +15,18 @@ function formatMoney(n: number): string {
   return new Intl.NumberFormat('ru-RU').format(n) + ' ₽';
 }
 
+// Generate time options with 15-min step
+const timeOptions: string[] = [];
+for (let h = 0; h < 24; h++) {
+  for (let m of [0, 15, 30, 45]) {
+    timeOptions.push(`${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}`);
+  }
+}
+
 export default function Shifts() {
   const {
     shifts, workers, objects, partners,
-    addShift, updateShift, deleteShift,
+    addShift, addShifts, updateShift, deleteShift,
     getObject, getWorker, calcHours, calcPartnerShare
   } = useStore();
 
@@ -28,6 +37,19 @@ export default function Shifts() {
   const [filterWorker, setFilterWorker] = useState('');
   const [filterObject, setFilterObject] = useState('');
   const [overridePartner, setOverridePartner] = useState(false);
+
+  // Multi-select mode
+  const [multiMode, setMultiMode] = useState(false);
+  const [selectedWorkers, setSelectedWorkers] = useState<string[]>([]);
+  const [individualSalaries, setIndividualSalaries] = useState(false);
+  const [workerSalaries, setWorkerSalaries] = useState<Record<string, number>>({});
+
+  // Sorting
+  const [sortField, setSortField] = useState<string>('date');
+  const [sortDir, setSortDir] = useState<SortDirection>('desc');
+
+  // Detail modal
+  const [detailWorker, setDetailWorker] = useState<string | null>(null);
 
   const [form, setForm] = useState<Omit<Shift, 'id'>>({
     number: shifts.length + 1,
@@ -61,6 +83,10 @@ export default function Shifts() {
     });
     setEditingId(null);
     setOverridePartner(false);
+    setMultiMode(false);
+    setSelectedWorkers([]);
+    setIndividualSalaries(false);
+    setWorkerSalaries({});
     setShowForm(false);
   };
 
@@ -68,19 +94,36 @@ export default function Shifts() {
     setForm({ ...s });
     setEditingId(s.id);
     setOverridePartner(s.partner_share_override !== null);
+    setMultiMode(false);
     setShowForm(true);
   };
 
   const handleSave = () => {
-    if (!form.worker_id || !form.date) return;
-    const shiftData = {
-      ...form,
-      partner_share_override: overridePartner ? form.partner_share_override : null
-    };
-    if (editingId) {
-      updateShift(editingId, shiftData);
+    if (!form.date) return;
+
+    if (multiMode) {
+      if (selectedWorkers.length === 0) return;
+      const newShifts: Omit<Shift, 'id'>[] = selectedWorkers.map((wid, idx) => {
+        const salary = individualSalaries ? (workerSalaries[wid] || 0) : form.salary;
+        return {
+          ...form,
+          number: shifts.length + idx + 1,
+          worker_id: wid,
+          salary,
+        };
+      });
+      addShifts(newShifts);
     } else {
-      addShift(shiftData);
+      if (!form.worker_id) return;
+      const shiftData = {
+        ...form,
+        partner_share_override: overridePartner ? form.partner_share_override : null
+      };
+      if (editingId) {
+        updateShift(editingId, shiftData);
+      } else {
+        addShift(shiftData);
+      }
     }
     resetForm();
   };
@@ -89,8 +132,17 @@ export default function Shifts() {
     if (confirm('Удалить смену?')) deleteShift(id);
   };
 
+  const toggleSort = (field: string) => {
+    if (sortField === field) {
+      setSortDir(sortDir === 'asc' ? 'desc' : sortDir === 'desc' ? null : 'asc');
+    } else {
+      setSortField(field);
+      setSortDir('desc');
+    }
+  };
+
   const filtered = useMemo(() => {
-    return shifts.filter((s) => {
+    let result = shifts.filter((s) => {
       if (filterDate && s.date !== filterDate) return false;
       if (filterWorker && s.worker_id !== filterWorker) return false;
       if (filterObject && s.object_id !== filterObject) return false;
@@ -101,10 +153,42 @@ export default function Shifts() {
         if (!text.includes(search.toLowerCase())) return false;
       }
       return true;
-    }).sort((a, b) => b.date.localeCompare(a.date) || b.number - a.number);
-  }, [shifts, filterDate, filterWorker, filterObject, search, getWorker, getObject]);
+    });
+
+    if (sortField && sortDir) {
+      result = [...result].sort((a, b) => {
+        let aVal: any, bVal: any;
+        switch (sortField) {
+          case 'date': aVal = a.date; bVal = b.date; break;
+          case 'worker': aVal = getWorker(a.worker_id)?.full_name || ''; bVal = getWorker(b.worker_id)?.full_name || ''; break;
+          case 'object': aVal = a.object_id ? getObject(a.object_id)?.name || '' : ''; bVal = b.object_id ? getObject(b.object_id)?.name || '' : ''; break;
+          case 'salary': aVal = a.salary; bVal = b.salary; break;
+          case 'hours': aVal = calcHours(a); bVal = calcHours(b); break;
+          case 'my_share': aVal = a.my_share; bVal = b.my_share; break;
+          default: aVal = a.date; bVal = b.date;
+        }
+        if (typeof aVal === 'string') {
+          return sortDir === 'asc' ? aVal.localeCompare(bVal) : bVal.localeCompare(aVal);
+        }
+        return sortDir === 'asc' ? aVal - bVal : bVal - aVal;
+      });
+    }
+
+    return result;
+  }, [shifts, filterDate, filterWorker, filterObject, search, sortField, sortDir, getWorker, getObject, calcHours]);
 
   const selectedObj = form.object_id ? getObject(form.object_id) : null;
+
+  const toggleWorker = (wid: string) => {
+    setSelectedWorkers((prev) =>
+      prev.includes(wid) ? prev.filter((x) => x !== wid) : [...prev, wid]
+    );
+  };
+
+  const SortIcon = ({ field }: { field: string }) => {
+    if (sortField !== field || !sortDir) return <span className="text-gray-300 ml-1">⇅</span>;
+    return <span className="ml-1">{sortDir === 'asc' ? '↑' : '↓'}</span>;
+  };
 
   return (
     <div className="p-6 space-y-4">
@@ -123,7 +207,7 @@ export default function Shifts() {
           <input type="text" placeholder="Поиск..." value={search} onChange={(e) => setSearch(e.target.value)}
             className="w-full pl-9 pr-3 py-2 border rounded-lg text-sm" />
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
           <Filter size={16} className="text-gray-400" />
           <input type="date" value={filterDate} onChange={(e) => setFilterDate(e.target.value)}
             className="border rounded-lg px-3 py-2 text-sm" />
@@ -153,11 +237,22 @@ export default function Shifts() {
               <button onClick={resetForm}><X size={20} /></button>
             </div>
             <div className="space-y-3">
+              {!editingId && (
+                <label className="flex items-center gap-2 cursor-pointer p-2 bg-blue-50 rounded-lg">
+                  <input type="checkbox" checked={multiMode} onChange={(e) => {
+                    setMultiMode(e.target.checked);
+                    if (!e.target.checked) { setSelectedWorkers([]); setIndividualSalaries(false); }
+                  }} />
+                  <Users size={16} className="text-blue-600" />
+                  <span className="text-sm font-medium text-blue-700">Добавить сразу нескольких рабочих</span>
+                </label>
+              )}
+
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="text-sm text-gray-600">№</label>
-                  <input type="number" value={form.number} onChange={(e) => setForm({ ...form, number: +e.target.value })}
-                    className="w-full border rounded-lg px-3 py-2" />
+                  <input type="number" value={form.number || ''} onChange={(e) => setForm({ ...form, number: +e.target.value })}
+                    className="w-full border rounded-lg px-3 py-2" placeholder="Авто" />
                 </div>
                 <div>
                   <label className="text-sm text-gray-600">Дата *</label>
@@ -165,14 +260,56 @@ export default function Shifts() {
                     className="w-full border rounded-lg px-3 py-2" />
                 </div>
               </div>
-              <div>
-                <label className="text-sm text-gray-600">Рабочий *</label>
-                <select value={form.worker_id} onChange={(e) => setForm({ ...form, worker_id: e.target.value })}
-                  className="w-full border rounded-lg px-3 py-2">
-                  <option value="">Выберите рабочего</option>
-                  {workers.map((w) => <option key={w.id} value={w.id}>{w.full_name}</option>)}
-                </select>
-              </div>
+
+              {/* Multi-select workers */}
+              {multiMode ? (
+                <div>
+                  <label className="text-sm text-gray-600 mb-1 block">Выберите рабочих *</label>
+                  <div className="border rounded-lg max-h-40 overflow-y-auto p-2 space-y-1">
+                    {workers.map((w) => (
+                      <label key={w.id} className="flex items-center gap-2 p-1.5 hover:bg-gray-50 rounded cursor-pointer">
+                        <input type="checkbox" checked={selectedWorkers.includes(w.id)} onChange={() => toggleWorker(w.id)} />
+                        <span className="text-sm">{w.full_name}</span>
+                      </label>
+                    ))}
+                  </div>
+                  {selectedWorkers.length > 0 && (
+                    <p className="text-xs text-blue-600 mt-1">Выбрано: {selectedWorkers.length} рабочих</p>
+                  )}
+
+                  {/* Individual salaries */}
+                  <label className="flex items-center gap-2 cursor-pointer mt-3 p-2 bg-yellow-50 rounded-lg">
+                    <input type="checkbox" checked={individualSalaries} onChange={(e) => setIndividualSalaries(e.target.checked)} />
+                    <span className="text-sm text-yellow-700">У каждого рабочая своя зарплата</span>
+                  </label>
+                  {individualSalaries && (
+                    <div className="mt-2 space-y-2 border rounded-lg p-2 max-h-40 overflow-y-auto">
+                      {selectedWorkers.map((wid) => {
+                        const w = getWorker(wid);
+                        return (
+                          <div key={wid} className="flex items-center gap-2">
+                            <span className="text-sm flex-1 truncate">{w?.full_name}</span>
+                            <input type="number" value={workerSalaries[wid] || ''} placeholder="ЗП"
+                              onChange={(e) => setWorkerSalaries({ ...workerSalaries, [wid]: +e.target.value })}
+                              className="w-24 border rounded px-2 py-1 text-sm" />
+                            <span className="text-xs text-gray-500">₽</span>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <div>
+                  <label className="text-sm text-gray-600">Рабочий *</label>
+                  <select value={form.worker_id} onChange={(e) => setForm({ ...form, worker_id: e.target.value })}
+                    className="w-full border rounded-lg px-3 py-2">
+                    <option value="">Выберите рабочего</option>
+                    {workers.map((w) => <option key={w.id} value={w.id}>{w.full_name}</option>)}
+                  </select>
+                </div>
+              )}
+
               <div>
                 <label className="text-sm text-gray-600">Объект</label>
                 <select value={form.object_id} onChange={(e) => setForm({ ...form, object_id: e.target.value })}
@@ -186,24 +323,34 @@ export default function Shifts() {
                   </p>
                 )}
               </div>
-              <div>
-                <label className="text-sm text-gray-600">Зарплата рабочего (₽)</label>
-                <input type="number" value={form.salary} onChange={(e) => setForm({ ...form, salary: +e.target.value })}
-                  className="w-full border rounded-lg px-3 py-2" />
-              </div>
+
+              {!individualSalaries && (
+                <div>
+                  <label className="text-sm text-gray-600">Зарплата (₽)</label>
+                  <input type="number" value={form.salary || ''} onChange={(e) => setForm({ ...form, salary: +e.target.value })}
+                    className="w-full border rounded-lg px-3 py-2" placeholder="0" />
+                </div>
+              )}
+
               <div className="grid grid-cols-3 gap-3">
                 <div>
                   <label className="text-sm text-gray-600">Начало</label>
-                  <input type="time" value={form.time_start} onChange={(e) => setForm({ ...form, time_start: e.target.value })}
-                    className="w-full border rounded-lg px-3 py-2" />
+                  <select value={form.time_start} onChange={(e) => setForm({ ...form, time_start: e.target.value })}
+                    className="w-full border rounded-lg px-3 py-2">
+                    <option value="">—</option>
+                    {timeOptions.map((t) => <option key={t} value={t}>{t}</option>)}
+                  </select>
                 </div>
                 <div>
                   <label className="text-sm text-gray-600">Конец</label>
-                  <input type="time" value={form.time_end} onChange={(e) => setForm({ ...form, time_end: e.target.value })}
-                    className="w-full border rounded-lg px-3 py-2" />
+                  <select value={form.time_end} onChange={(e) => setForm({ ...form, time_end: e.target.value })}
+                    className="w-full border rounded-lg px-3 py-2">
+                    <option value="">—</option>
+                    {timeOptions.map((t) => <option key={t} value={t}>{t}</option>)}
+                  </select>
                 </div>
                 <div>
-                  <label className="text-sm text-gray-600">Часы (вручную)</label>
+                  <label className="text-sm text-gray-600">Часы (вручную, мин)</label>
                   <input type="number" placeholder="авто" value={form.hours_manual ?? ''}
                     onChange={(e) => setForm({ ...form, hours_manual: e.target.value ? +e.target.value : null })}
                     className="w-full border rounded-lg px-3 py-2" />
@@ -216,8 +363,8 @@ export default function Shifts() {
               )}
               <div>
                 <label className="text-sm text-gray-600">Моя доля (₽)</label>
-                <input type="number" value={form.my_share} onChange={(e) => setForm({ ...form, my_share: +e.target.value })}
-                  className="w-full border rounded-lg px-3 py-2" />
+                <input type="number" value={form.my_share || ''} onChange={(e) => setForm({ ...form, my_share: +e.target.value })}
+                  className="w-full border rounded-lg px-3 py-2" placeholder="0" />
               </div>
               <div className="border-t pt-3">
                 <label className="flex items-center gap-2 cursor-pointer">
@@ -228,14 +375,14 @@ export default function Shifts() {
                   <span className="text-sm text-gray-600">Переопределить долю партнёра вручную</span>
                 </label>
                 {overridePartner && (
-                  <input type="number" value={form.partner_share_override ?? 0}
-                    onChange={(e) => setForm({ ...form, partner_share_override: +e.target.value })}
-                    className="w-full border rounded-lg px-3 py-2 mt-2" placeholder="Доля партнёра" />
+                  <input type="number" value={form.partner_share_override ?? ''} placeholder="Доля партнёра"
+                    onChange={(e) => setForm({ ...form, partner_share_override: e.target.value ? +e.target.value : null })}
+                    className="w-full border rounded-lg px-3 py-2 mt-2" />
                 )}
-                {!overridePartner && (
+                {!overridePartner && !multiMode && form.worker_id && (
                   <p className="text-xs text-gray-500 mt-1">
                     Авто: {formatMoney(calcPartnerShare(form as Shift))}
-                    {form.worker_id && getWorker(form.worker_id)?.inviter === 'Я' && ' (пригласил Я → 0)'}
+                    {getWorker(form.worker_id)?.inviter === 'Я' && ' (пригласил Я → 0)'}
                   </p>
                 )}
               </div>
@@ -252,7 +399,7 @@ export default function Shifts() {
             </div>
             <div className="flex gap-3 mt-5">
               <button onClick={handleSave} className="flex-1 bg-blue-600 text-white py-2 rounded-lg hover:bg-blue-700">
-                {editingId ? 'Сохранить' : 'Добавить'}
+                {editingId ? 'Сохранить' : multiMode ? `Создать ${selectedWorkers.length} смен` : 'Добавить'}
               </button>
               <button onClick={resetForm} className="flex-1 border py-2 rounded-lg hover:bg-gray-50">Отмена</button>
             </div>
@@ -260,23 +407,37 @@ export default function Shifts() {
         </div>
       )}
 
+      {/* Detail Modal */}
+      {detailWorker && (
+        <DetailModal type="worker" id={detailWorker} onClose={() => setDetailWorker(null)} />
+      )}
+
       {/* Table */}
       <div className="bg-white rounded-xl border shadow-sm overflow-x-auto">
         <table className="w-full text-sm">
           <thead className="bg-gray-50">
             <tr className="text-left text-gray-600">
-              <th className="px-3 py-3">№</th>
-              <th className="px-3 py-3">Дата</th>
-              <th className="px-3 py-3">Рабочий</th>
-              <th className="px-3 py-3">Объект</th>
-              <th className="px-3 py-3">Адрес</th>
+              <th className="px-3 py-3 cursor-pointer hover:text-blue-600" onClick={() => toggleSort('date')}>
+                № / Дата <SortIcon field="date" />
+              </th>
+              <th className="px-3 py-3 cursor-pointer hover:text-blue-600" onClick={() => toggleSort('worker')}>
+                Рабочий <SortIcon field="worker" />
+              </th>
+              <th className="px-3 py-3 cursor-pointer hover:text-blue-600" onClick={() => toggleSort('object')}>
+                Объект <SortIcon field="object" />
+              </th>
               <th className="px-3 py-3">Направление</th>
-              <th className="px-3 py-3">ЗП</th>
+              <th className="px-3 py-3 cursor-pointer hover:text-blue-600" onClick={() => toggleSort('salary')}>
+                ЗП <SortIcon field="salary" />
+              </th>
               <th className="px-3 py-3">Время</th>
-              <th className="px-3 py-3">Часы</th>
-              <th className="px-3 py-3">Моя доля</th>
+              <th className="px-3 py-3 cursor-pointer hover:text-blue-600" onClick={() => toggleSort('hours')}>
+                Часы <SortIcon field="hours" />
+              </th>
+              <th className="px-3 py-3 cursor-pointer hover:text-blue-600" onClick={() => toggleSort('my_share')}>
+                Моя доля <SortIcon field="my_share" />
+              </th>
               <th className="px-3 py-3">Партнёру</th>
-              <th className="px-3 py-3">Пригласил</th>
               <th className="px-3 py-3">Действия</th>
             </tr>
           </thead>
@@ -287,22 +448,23 @@ export default function Shifts() {
               const ps = calcPartnerShare(s);
               return (
                 <tr key={s.id} className="border-t hover:bg-gray-50">
-                  <td className="px-3 py-2">{s.number}</td>
-                  <td className="px-3 py-2">{s.date}</td>
-                  <td className="px-3 py-2 font-medium">{w?.full_name || '?'}</td>
+                  <td className="px-3 py-2">
+                    <div className="text-xs text-gray-400">#{s.number}</div>
+                    <div>{s.date}</div>
+                  </td>
+                  <td className="px-3 py-2">
+                    <button onClick={() => w && setDetailWorker(w.id)}
+                      className="font-medium text-left hover:text-blue-600 hover:underline">
+                      {w?.full_name || '?'}
+                    </button>
+                  </td>
                   <td className="px-3 py-2">{o?.name || '—'}</td>
-                  <td className="px-3 py-2 text-gray-500 text-xs">{o?.address || ''}</td>
                   <td className="px-3 py-2 text-gray-500 text-xs">{o?.direction || ''}</td>
                   <td className="px-3 py-2">{formatMoney(s.salary)}</td>
-                  <td className="px-3 py-2 text-xs">{s.time_start && s.time_end ? `${s.time_start}-${s.time_end}` : '—'}</td>
+                  <td className="px-3 py-2 text-xs">{s.time_start && s.time_end ? `${s.time_start}–${s.time_end}` : '—'}</td>
                   <td className="px-3 py-2">{formatMinutes(calcHours(s))}</td>
                   <td className="px-3 py-2 font-medium text-blue-600">{formatMoney(s.my_share)}</td>
                   <td className="px-3 py-2 text-orange-600">{formatMoney(ps)}</td>
-                  <td className="px-3 py-2 text-xs">
-                    <span className={`px-1.5 py-0.5 rounded ${w?.inviter === 'Я' ? 'bg-blue-100 text-blue-700' : 'bg-green-100 text-green-700'}`}>
-                      {w?.inviter || '—'}
-                    </span>
-                  </td>
                   <td className="px-3 py-2">
                     <div className="flex gap-1">
                       <button onClick={() => handleEdit(s)} className="p-1.5 hover:bg-blue-50 rounded text-blue-600"><Pencil size={16} /></button>
@@ -313,7 +475,7 @@ export default function Shifts() {
               );
             })}
             {filtered.length === 0 && (
-              <tr><td colSpan={13} className="text-center py-8 text-gray-400">Нет смен</td></tr>
+              <tr><td colSpan={10} className="text-center py-8 text-gray-400">Нет смен</td></tr>
             )}
           </tbody>
         </table>

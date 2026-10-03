@@ -1,5 +1,5 @@
 import { Page } from '../types';
-import { LayoutDashboard, Users, UserCheck, MapPin, Calendar, BarChart3, Database } from 'lucide-react';
+import { LayoutDashboard, Users, UserCheck, MapPin, Calendar, BarChart3, Database, CalendarDays, ClipboardList } from 'lucide-react';
 
 interface SidebarProps {
   currentPage: Page;
@@ -8,6 +8,8 @@ interface SidebarProps {
 
 const menuItems: { page: Page; label: string; icon: React.ReactNode }[] = [
   { page: 'dashboard', label: 'Дашборд', icon: <LayoutDashboard size={20} /> },
+  { page: 'calendar', label: 'Календарь', icon: <CalendarDays size={20} /> },
+  { page: 'planning', label: 'Планирование', icon: <ClipboardList size={20} /> },
   { page: 'workers', label: 'Рабочие', icon: <Users size={20} /> },
   { page: 'partners', label: 'Партнёры', icon: <UserCheck size={20} /> },
   { page: 'objects', label: 'Объекты', icon: <MapPin size={20} /> },
@@ -23,7 +25,7 @@ export default function Sidebar({ currentPage, onNavigate }: SidebarProps) {
         <h1 className="text-xl font-bold text-blue-400">🏗️ БригадаУчёт</h1>
         <p className="text-xs text-gray-400 mt-1">Учёт рабочих бригад</p>
       </div>
-      <nav className="flex-1 p-3">
+      <nav className="flex-1 p-3 overflow-y-auto">
         {menuItems.map((item) => (
           <button
             key={item.page}
