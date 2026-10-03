@@ -1,13 +1,18 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { useStore } from '../store';
-import { Worker } from '../types';
+import { Worker, SortDirection } from '../types';
 import { Plus, Pencil, Trash2, X, Search } from 'lucide-react';
+import DetailModal from './DetailModal';
 
 export default function Workers() {
   const { workers, partners, addWorker, updateWorker, deleteWorker, shifts, calcHours } = useStore();
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [search, setSearch] = useState('');
+  const [sortField, setSortField] = useState<string>('number');
+  const [sortDir, setSortDir] = useState<SortDirection>('asc');
+  const [detailId, setDetailId] = useState<string | null>(null);
+
   const [form, setForm] = useState<Omit<Worker, 'id'>>({
     number: workers.length + 1, full_name: '', age: 0, phone: '', inviter: 'Я', start_date: ''
   });
@@ -42,10 +47,48 @@ export default function Workers() {
     }
   };
 
-  const filtered = workers.filter((w) =>
-    w.full_name.toLowerCase().includes(search.toLowerCase()) ||
-    w.phone.includes(search)
-  );
+  const toggleSort = (field: string) => {
+    if (sortField === field) {
+      setSortDir(sortDir === 'asc' ? 'desc' : sortDir === 'desc' ? null : 'asc');
+    } else {
+      setSortField(field);
+      setSortDir('asc');
+    }
+  };
+
+  const SortIcon = ({ field }: { field: string }) => {
+    if (sortField !== field || !sortDir) return <span className="text-gray-300 ml-1">⇅</span>;
+    return <span className="ml-1">{sortDir === 'asc' ? '↑' : '↓'}</span>;
+  };
+
+  const filtered = useMemo(() => {
+    let result = workers.filter((w) =>
+      w.full_name.toLowerCase().includes(search.toLowerCase()) ||
+      w.phone.includes(search)
+    );
+
+    if (sortField && sortDir) {
+      result = [...result].sort((a, b) => {
+        let aVal: any, bVal: any;
+        switch (sortField) {
+          case 'number': aVal = a.number; bVal = b.number; break;
+          case 'full_name': aVal = a.full_name; bVal = b.full_name; break;
+          case 'age': aVal = a.age; bVal = b.age; break;
+          case 'inviter': aVal = a.inviter; bVal = b.inviter; break;
+          case 'start_date': aVal = a.start_date; bVal = b.start_date; break;
+          case 'shifts': aVal = shifts.filter((s) => s.worker_id === a.id).length; bVal = shifts.filter((s) => s.worker_id === b.id).length; break;
+          case 'earned': aVal = shifts.filter((s) => s.worker_id === a.id).reduce((sum, s) => sum + s.salary, 0); bVal = shifts.filter((s) => s.worker_id === b.id).reduce((sum, s) => sum + s.salary, 0); break;
+          default: aVal = a.number; bVal = b.number;
+        }
+        if (typeof aVal === 'string') {
+          return sortDir === 'asc' ? aVal.localeCompare(bVal) : bVal.localeCompare(aVal);
+        }
+        return sortDir === 'asc' ? aVal - bVal : bVal - aVal;
+      });
+    }
+
+    return result;
+  }, [workers, search, sortField, sortDir, shifts]);
 
   const getWorkerStats = (workerId: string) => {
     const ws = shifts.filter((s) => s.worker_id === workerId);
@@ -72,7 +115,6 @@ export default function Workers() {
           className="w-full pl-10 pr-4 py-2 border rounded-lg" />
       </div>
 
-      {/* Form Modal */}
       {showForm && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
           <div className="bg-white rounded-xl p-6 w-full max-w-md shadow-2xl">
@@ -89,13 +131,13 @@ export default function Workers() {
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="text-sm text-gray-600">№</label>
-                  <input type="number" value={form.number} onChange={(e) => setForm({ ...form, number: +e.target.value })}
-                    className="w-full border rounded-lg px-3 py-2" />
+                  <input type="number" value={form.number || ''} onChange={(e) => setForm({ ...form, number: +e.target.value })}
+                    className="w-full border rounded-lg px-3 py-2" placeholder="Авто" />
                 </div>
                 <div>
                   <label className="text-sm text-gray-600">Возраст</label>
-                  <input type="number" value={form.age} onChange={(e) => setForm({ ...form, age: +e.target.value })}
-                    className="w-full border rounded-lg px-3 py-2" />
+                  <input type="number" value={form.age || ''} onChange={(e) => setForm({ ...form, age: +e.target.value })}
+                    className="w-full border rounded-lg px-3 py-2" placeholder="0" />
                 </div>
               </div>
               <div>
@@ -126,19 +168,22 @@ export default function Workers() {
         </div>
       )}
 
-      {/* Table */}
+      {detailId && (
+        <DetailModal type="worker" id={detailId} onClose={() => setDetailId(null)} />
+      )}
+
       <div className="bg-white rounded-xl border shadow-sm overflow-hidden">
         <table className="w-full text-sm">
           <thead className="bg-gray-50">
             <tr className="text-left text-gray-600">
-              <th className="px-4 py-3">№</th>
-              <th className="px-4 py-3">ФИО</th>
-              <th className="px-4 py-3">Возраст</th>
+              <th className="px-4 py-3 cursor-pointer hover:text-blue-600" onClick={() => toggleSort('number')}>№ <SortIcon field="number" /></th>
+              <th className="px-4 py-3 cursor-pointer hover:text-blue-600" onClick={() => toggleSort('full_name')}>ФИО <SortIcon field="full_name" /></th>
+              <th className="px-4 py-3 cursor-pointer hover:text-blue-600" onClick={() => toggleSort('age')}>Возраст <SortIcon field="age" /></th>
               <th className="px-4 py-3">Телефон</th>
-              <th className="px-4 py-3">Пригласил</th>
-              <th className="px-4 py-3">Дата начала</th>
-              <th className="px-4 py-3">Смен</th>
-              <th className="px-4 py-3">Заработок</th>
+              <th className="px-4 py-3 cursor-pointer hover:text-blue-600" onClick={() => toggleSort('inviter')}>Пригласил <SortIcon field="inviter" /></th>
+              <th className="px-4 py-3 cursor-pointer hover:text-blue-600" onClick={() => toggleSort('start_date')}>Дата начала <SortIcon field="start_date" /></th>
+              <th className="px-4 py-3 cursor-pointer hover:text-blue-600" onClick={() => toggleSort('shifts')}>Смен <SortIcon field="shifts" /></th>
+              <th className="px-4 py-3 cursor-pointer hover:text-blue-600" onClick={() => toggleSort('earned')}>Заработок <SortIcon field="earned" /></th>
               <th className="px-4 py-3">Действия</th>
             </tr>
           </thead>
@@ -148,15 +193,19 @@ export default function Workers() {
               return (
                 <tr key={w.id} className="border-t hover:bg-gray-50">
                   <td className="px-4 py-2">{w.number}</td>
-                  <td className="px-4 py-2 font-medium">{w.full_name}</td>
-                  <td className="px-4 py-2">{w.age}</td>
-                  <td className="px-4 py-2">{w.phone}</td>
+                  <td className="px-4 py-2">
+                    <button onClick={() => setDetailId(w.id)} className="font-medium text-left hover:text-blue-600 hover:underline">
+                      {w.full_name}
+                    </button>
+                  </td>
+                  <td className="px-4 py-2">{w.age || '—'}</td>
+                  <td className="px-4 py-2">{w.phone || '—'}</td>
                   <td className="px-4 py-2">
                     <span className={`px-2 py-0.5 rounded text-xs ${w.inviter === 'Я' ? 'bg-blue-100 text-blue-700' : 'bg-green-100 text-green-700'}`}>
                       {w.inviter}
                     </span>
                   </td>
-                  <td className="px-4 py-2">{w.start_date}</td>
+                  <td className="px-4 py-2">{w.start_date || '—'}</td>
                   <td className="px-4 py-2">{stats.shifts}</td>
                   <td className="px-4 py-2 font-medium">{new Intl.NumberFormat('ru-RU').format(stats.earned)} ₽</td>
                   <td className="px-4 py-2">

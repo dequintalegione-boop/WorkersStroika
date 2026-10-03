@@ -1,12 +1,16 @@
 import { useState, useMemo } from 'react';
 import { useStore } from '../store';
-import { Partner } from '../types';
+import { Partner, SortDirection } from '../types';
 import { Plus, Pencil, Trash2, X } from 'lucide-react';
+import DetailModal from './DetailModal';
 
 export default function Partners() {
   const { partners, workers, shifts, addPartner, updatePartner, deletePartner, calcPartnerShare, calcHours } = useStore();
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [sortField, setSortField] = useState<string>('number');
+  const [sortDir, setSortDir] = useState<SortDirection>('asc');
+  const [detailId, setDetailId] = useState<string | null>(null);
   const [form, setForm] = useState<Omit<Partner, 'id'>>({ number: partners.length + 1, full_name: '' });
 
   const resetForm = () => {
@@ -38,8 +42,22 @@ export default function Partners() {
     }
   };
 
+  const toggleSort = (field: string) => {
+    if (sortField === field) {
+      setSortDir(sortDir === 'asc' ? 'desc' : sortDir === 'desc' ? null : 'asc');
+    } else {
+      setSortField(field);
+      setSortDir('asc');
+    }
+  };
+
+  const SortIcon = ({ field }: { field: string }) => {
+    if (sortField !== field || !sortDir) return <span className="text-gray-300 ml-1">⇅</span>;
+    return <span className="ml-1">{sortDir === 'asc' ? '↑' : '↓'}</span>;
+  };
+
   const stats = useMemo(() => {
-    return partners.map((p) => {
+    let result = partners.map((p) => {
       const invitedWorkers = workers.filter((w) => w.inviter === p.full_name);
       const workerIds = invitedWorkers.map((w) => w.id);
       const partnerShifts = shifts.filter((s) => workerIds.includes(s.worker_id));
@@ -51,7 +69,28 @@ export default function Partners() {
         earnings: partnerShifts.reduce((sum, s) => sum + calcPartnerShare(s), 0)
       };
     });
-  }, [partners, workers, shifts, calcPartnerShare, calcHours]);
+
+    if (sortField && sortDir) {
+      result = [...result].sort((a, b) => {
+        let aVal: any, bVal: any;
+        switch (sortField) {
+          case 'number': aVal = a.number; bVal = b.number; break;
+          case 'full_name': aVal = a.full_name; bVal = b.full_name; break;
+          case 'invited_count': aVal = a.invited_count; bVal = b.invited_count; break;
+          case 'shifts_count': aVal = a.shifts_count; bVal = b.shifts_count; break;
+          case 'total_hours': aVal = a.total_hours; bVal = b.total_hours; break;
+          case 'earnings': aVal = a.earnings; bVal = b.earnings; break;
+          default: aVal = a.number; bVal = b.number;
+        }
+        if (typeof aVal === 'string') {
+          return sortDir === 'asc' ? aVal.localeCompare(bVal) : bVal.localeCompare(aVal);
+        }
+        return sortDir === 'asc' ? aVal - bVal : bVal - aVal;
+      });
+    }
+
+    return result;
+  }, [partners, workers, shifts, calcPartnerShare, calcHours, sortField, sortDir]);
 
   return (
     <div className="p-6 space-y-4">
@@ -78,8 +117,8 @@ export default function Partners() {
               </div>
               <div>
                 <label className="text-sm text-gray-600">№</label>
-                <input type="number" value={form.number} onChange={(e) => setForm({ ...form, number: +e.target.value })}
-                  className="w-full border rounded-lg px-3 py-2" />
+                <input type="number" value={form.number || ''} onChange={(e) => setForm({ ...form, number: +e.target.value })}
+                  className="w-full border rounded-lg px-3 py-2" placeholder="Авто" />
               </div>
             </div>
             <div className="flex gap-3 mt-5">
@@ -92,16 +131,20 @@ export default function Partners() {
         </div>
       )}
 
+      {detailId && (
+        <DetailModal type="partner" id={detailId} onClose={() => setDetailId(null)} />
+      )}
+
       <div className="bg-white rounded-xl border shadow-sm overflow-hidden">
         <table className="w-full text-sm">
           <thead className="bg-gray-50">
             <tr className="text-left text-gray-600">
-              <th className="px-4 py-3">№</th>
-              <th className="px-4 py-3">ФИО</th>
-              <th className="px-4 py-3">Приглашено</th>
-              <th className="px-4 py-3">Смен отработано</th>
-              <th className="px-4 py-3">Часы</th>
-              <th className="px-4 py-3">Заработок</th>
+              <th className="px-4 py-3 cursor-pointer hover:text-blue-600" onClick={() => toggleSort('number')}>№ <SortIcon field="number" /></th>
+              <th className="px-4 py-3 cursor-pointer hover:text-blue-600" onClick={() => toggleSort('full_name')}>ФИО <SortIcon field="full_name" /></th>
+              <th className="px-4 py-3 cursor-pointer hover:text-blue-600" onClick={() => toggleSort('invited_count')}>Приглашено <SortIcon field="invited_count" /></th>
+              <th className="px-4 py-3 cursor-pointer hover:text-blue-600" onClick={() => toggleSort('shifts_count')}>Смен <SortIcon field="shifts_count" /></th>
+              <th className="px-4 py-3 cursor-pointer hover:text-blue-600" onClick={() => toggleSort('total_hours')}>Часы <SortIcon field="total_hours" /></th>
+              <th className="px-4 py-3 cursor-pointer hover:text-blue-600" onClick={() => toggleSort('earnings')}>Заработок <SortIcon field="earnings" /></th>
               <th className="px-4 py-3">Действия</th>
             </tr>
           </thead>
@@ -109,7 +152,11 @@ export default function Partners() {
             {stats.map((p) => (
               <tr key={p.id} className="border-t hover:bg-gray-50">
                 <td className="px-4 py-2">{p.number}</td>
-                <td className="px-4 py-2 font-medium">{p.full_name}</td>
+                <td className="px-4 py-2">
+                  <button onClick={() => setDetailId(p.id)} className="font-medium text-left hover:text-blue-600 hover:underline">
+                    {p.full_name}
+                  </button>
+                </td>
                 <td className="px-4 py-2">{p.invited_count}</td>
                 <td className="px-4 py-2">{p.shifts_count}</td>
                 <td className="px-4 py-2">{Math.floor(p.total_hours / 60)}ч {p.total_hours % 60}м</td>

@@ -4,8 +4,8 @@ export interface Worker {
   full_name: string;
   age: number;
   phone: string;
-  inviter: string; // "Я" or Partner full_name
-  start_date: string; // ISO date
+  inviter: string;
+  start_date: string;
 }
 
 export interface Partner {
@@ -25,17 +25,28 @@ export interface WorkObject {
 export interface Shift {
   id: string;
   number: number;
-  date: string; // ISO date
+  date: string;
   worker_id: string;
-  object_id: string; // can be empty
+  object_id: string;
   salary: number;
-  time_start: string; // HH:MM
-  time_end: string; // HH:MM
-  hours_manual: number | null; // manual hours in minutes, null if auto
+  time_start: string;
+  time_end: string;
+  hours_manual: number | null;
   my_share: number;
-  partner_share_override: number | null; // null = auto calculate
+  partner_share_override: number | null;
   review: string;
   comment: string;
 }
 
-export type Page = 'dashboard' | 'workers' | 'partners' | 'objects' | 'shifts' | 'statistics' | 'import';
+export interface PlanningEntry {
+  id: string;
+  date: string;
+  worker_id: string;
+  object_id: string;
+  note: string;
+  confirmed: boolean;
+}
+
+export type Page = 'dashboard' | 'workers' | 'partners' | 'objects' | 'shifts' | 'statistics' | 'import' | 'calendar' | 'planning';
+
+export type SortDirection = 'asc' | 'desc' | null;

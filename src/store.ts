@@ -1,13 +1,14 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { v4 as uuidv4 } from 'uuid';
-import { Worker, Partner, WorkObject, Shift } from './types';
+import { Worker, Partner, WorkObject, Shift, PlanningEntry } from './types';
 
 interface AppState {
   workers: Worker[];
   partners: Partner[];
   objects: WorkObject[];
   shifts: Shift[];
+  planning: PlanningEntry[];
 
   // Worker CRUD
   addWorker: (w: Omit<Worker, 'id'>) => void;
@@ -26,18 +27,24 @@ interface AppState {
 
   // Shift CRUD
   addShift: (s: Omit<Shift, 'id'>) => void;
+  addShifts: (shifts: Omit<Shift, 'id'>[]) => void;
   updateShift: (id: string, s: Partial<Shift>) => void;
   deleteShift: (id: string) => void;
+
+  // Planning CRUD
+  addPlanning: (p: Omit<PlanningEntry, 'id'>) => void;
+  updatePlanning: (id: string, p: Partial<PlanningEntry>) => void;
+  deletePlanning: (id: string) => void;
 
   // Helpers
   getWorker: (id: string) => Worker | undefined;
   getObject: (id: string) => WorkObject | undefined;
   getInviterAuto: (workerId: string) => string;
-  calcPartnerShare: (shift: Shift) => number;
-  calcHours: (shift: Shift) => number; // in minutes
+  calcPartnerShare: (shift: Shift | Omit<Shift, 'id'>) => number;
+  calcHours: (shift: Shift | Omit<Shift, 'id'>) => number;
 
   // Import/Export
-  importData: (data: { workers: Worker[]; partners: Partner[]; objects: WorkObject[]; shifts: Shift[] }) => void;
+  importData: (data: { workers: Worker[]; partners: Partner[]; objects: WorkObject[]; shifts: Shift[]; planning?: PlanningEntry[] }) => void;
   exportData: () => string;
 }
 
@@ -48,6 +55,7 @@ export const useStore = create<AppState>()(
       partners: [],
       objects: [],
       shifts: [],
+      planning: [],
 
       addWorker: (w) => set((state) => ({
         workers: [...state.workers, { ...w, id: uuidv4() }]
@@ -82,11 +90,24 @@ export const useStore = create<AppState>()(
       addShift: (s) => set((state) => ({
         shifts: [...state.shifts, { ...s, id: uuidv4() }]
       })),
+      addShifts: (shiftsArr) => set((state) => ({
+        shifts: [...state.shifts, ...shiftsArr.map((s) => ({ ...s, id: uuidv4() }))]
+      })),
       updateShift: (id, s) => set((state) => ({
         shifts: state.shifts.map((x) => x.id === id ? { ...x, ...s } : x)
       })),
       deleteShift: (id) => set((state) => ({
         shifts: state.shifts.filter((x) => x.id !== id)
+      })),
+
+      addPlanning: (p) => set((state) => ({
+        planning: [...state.planning, { ...p, id: uuidv4() }]
+      })),
+      updatePlanning: (id, p) => set((state) => ({
+        planning: state.planning.map((x) => x.id === id ? { ...x, ...p } : x)
+      })),
+      deletePlanning: (id) => set((state) => ({
+        planning: state.planning.filter((x) => x.id !== id)
       })),
 
       getWorker: (id) => get().workers.find((w) => w.id === id),
@@ -96,18 +117,18 @@ export const useStore = create<AppState>()(
         return worker?.inviter || '';
       },
       calcPartnerShare: (shift) => {
-        if (shift.partner_share_override !== null) return shift.partner_share_override;
+        if (shift.partner_share_override !== null && shift.partner_share_override !== undefined) return shift.partner_share_override;
         const inviter = get().getInviterAuto(shift.worker_id);
         if (!inviter || inviter === 'Я') return 0;
-        return Math.max(0, shift.my_share * 0.1); // 10% от моей доли
+        return Math.max(0, shift.my_share * 0.1);
       },
       calcHours: (shift) => {
-        if (shift.hours_manual !== null) return shift.hours_manual;
+        if (shift.hours_manual !== null && shift.hours_manual !== undefined) return shift.hours_manual;
         if (shift.time_start && shift.time_end) {
           const [sh, sm] = shift.time_start.split(':').map(Number);
           const [eh, em] = shift.time_end.split(':').map(Number);
           let diff = (eh * 60 + em) - (sh * 60 + sm);
-          if (diff < 0) diff += 24 * 60; // overnight
+          if (diff < 0) diff += 24 * 60;
           return diff;
         }
         return 0;
@@ -117,7 +138,8 @@ export const useStore = create<AppState>()(
         workers: data.workers,
         partners: data.partners,
         objects: data.objects,
-        shifts: data.shifts
+        shifts: data.shifts,
+        planning: data.planning || []
       }),
       exportData: () => {
         const state = get();
@@ -125,7 +147,8 @@ export const useStore = create<AppState>()(
           workers: state.workers,
           partners: state.partners,
           objects: state.objects,
-          shifts: state.shifts
+          shifts: state.shifts,
+          planning: state.planning
         }, null, 2);
       }
     }),
