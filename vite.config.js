@@ -11,5 +11,13 @@ export default defineConfig({
     hmr: {
       port: 3000,
     },
+    watch: {
+      ignored: [
+        "**/.vs/**",
+        "**/.vscode/**",
+        "**/node_modules/**",
+        "**/dist/**",
+      ],
+    },
   },
 });
