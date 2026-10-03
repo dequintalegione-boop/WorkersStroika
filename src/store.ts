@@ -152,6 +152,19 @@ export const useStore = create<AppState>()(
         }, null, 2);
       }
     }),
-    { name: 'brigade-tracker-storage' }
+    { 
+      name: 'brigade-tracker-storage',
+      version: 2,
+      migrate: (persistedState: any, version: number) => {
+        if (version < 2) {
+          // Миграция с версии 1 на 2: добавляем planning
+          return {
+            ...persistedState,
+            planning: persistedState.planning || []
+          };
+        }
+        return persistedState;
+      }
+    }
   )
 );
