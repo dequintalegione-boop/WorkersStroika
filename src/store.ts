@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { v4 as uuidv4 } from 'uuid';
-import { Worker, Partner, WorkObject, Shift, PlanningEntry } from './types';
+import { Worker, Partner, WorkObject, Shift, PlanningEntry, Theme } from './types';
 
 interface AppState {
   workers: Worker[];
@@ -9,6 +9,8 @@ interface AppState {
   objects: WorkObject[];
   shifts: Shift[];
   planning: PlanningEntry[];
+  theme: Theme;
+  setTheme: (theme: Theme) => void;
 
   // Worker CRUD
   addWorker: (w: Omit<Worker, 'id'>) => void;
@@ -36,6 +38,12 @@ interface AppState {
   updatePlanning: (id: string, p: Partial<PlanningEntry>) => void;
   deletePlanning: (id: string) => void;
 
+  // Archive
+  archiveWorker: (id: string) => void;
+  unarchiveWorker: (id: string) => void;
+  archiveObject: (id: string) => void;
+  unarchiveObject: (id: string) => void;
+
   // Helpers
   getWorker: (id: string) => Worker | undefined;
   getObject: (id: string) => WorkObject | undefined;
@@ -56,6 +64,8 @@ export const useStore = create<AppState>()(
       objects: [],
       shifts: [],
       planning: [],
+      theme: 'light' as Theme,
+      setTheme: (theme) => set({ theme }),
 
       addWorker: (w) => set((state) => ({
         workers: [...state.workers, { ...w, id: uuidv4() }]
@@ -110,6 +120,19 @@ export const useStore = create<AppState>()(
         planning: state.planning.filter((x) => x.id !== id)
       })),
 
+      archiveWorker: (id) => set((state) => ({
+        workers: state.workers.map((w) => w.id === id ? { ...w, archived: true } : w)
+      })),
+      unarchiveWorker: (id) => set((state) => ({
+        workers: state.workers.map((w) => w.id === id ? { ...w, archived: false } : w)
+      })),
+      archiveObject: (id) => set((state) => ({
+        objects: state.objects.map((o) => o.id === id ? { ...o, archived: true } : o)
+      })),
+      unarchiveObject: (id) => set((state) => ({
+        objects: state.objects.map((o) => o.id === id ? { ...o, archived: false } : o)
+      })),
+
       getWorker: (id) => get().workers.find((w) => w.id === id),
       getObject: (id) => get().objects.find((o) => o.id === id),
       getInviterAuto: (workerId) => {
@@ -154,14 +177,13 @@ export const useStore = create<AppState>()(
     }),
     { 
       name: 'brigade-tracker-storage',
-      version: 2,
+      version: 3,
       migrate: (persistedState: any, version: number) => {
         if (version < 2) {
-          // Миграция с версии 1 на 2: добавляем planning
-          return {
-            ...persistedState,
-            planning: persistedState.planning || []
-          };
+          persistedState.planning = persistedState.planning || [];
+        }
+        if (version < 3) {
+          persistedState.theme = persistedState.theme || 'light';
         }
         return persistedState;
       }

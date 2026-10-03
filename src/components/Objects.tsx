@@ -1,16 +1,17 @@
 import { useState, useMemo } from 'react';
 import { useStore } from '../store';
 import { WorkObject, SortDirection } from '../types';
-import { Plus, Pencil, Trash2, X } from 'lucide-react';
+import { Plus, Pencil, Trash2, X, Archive, ArchiveRestore } from 'lucide-react';
 import DetailModal from './DetailModal';
 
 export default function Objects() {
-  const { objects, shifts, addObject, updateObject, deleteObject, calcHours, calcPartnerShare } = useStore();
+  const { objects, shifts, addObject, updateObject, deleteObject, archiveObject, unarchiveObject, calcHours, calcPartnerShare } = useStore();
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [sortField, setSortField] = useState<string>('number');
   const [sortDir, setSortDir] = useState<SortDirection>('asc');
   const [detailId, setDetailId] = useState<string | null>(null);
+  const [showArchived, setShowArchived] = useState(false);
   const [form, setForm] = useState<Omit<WorkObject, 'id'>>({ number: objects.length + 1, name: '', direction: '', address: '' });
 
   const resetForm = () => {
@@ -57,7 +58,12 @@ export default function Objects() {
   };
 
   const stats = useMemo(() => {
-    let result = objects.map((o) => {
+    let filteredObjects = objects.filter((o) => {
+      if (showArchived) return o.archived === true;
+      return !o.archived;
+    });
+    
+    let result = filteredObjects.map((o) => {
       const objShifts = shifts.filter((s) => s.object_id === o.id);
       const workerIds = new Set(objShifts.map((s) => s.worker_id));
       const dates = objShifts.map((s) => s.date).sort();
@@ -101,10 +107,17 @@ export default function Objects() {
     <div className="p-6 space-y-4">
       <div className="flex items-center justify-between">
         <h2 className="text-2xl font-bold text-gray-800">🏗️ Объекты</h2>
-        <button onClick={() => { resetForm(); setShowForm(true); }}
-          className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition">
-          <Plus size={18} /> Добавить
-        </button>
+        <div className="flex gap-2">
+          <button onClick={() => setShowArchived(!showArchived)}
+            className={`flex items-center gap-2 px-4 py-2 rounded-lg border transition ${showArchived ? 'bg-yellow-100 border-yellow-300 text-yellow-700' : 'bg-white hover:bg-gray-50'}`}>
+            <Archive size={16} />
+            <span className="text-sm">{showArchived ? 'Активные' : 'Архив'}</span>
+          </button>
+          <button onClick={() => { resetForm(); setShowForm(true); }}
+            className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition">
+            <Plus size={18} /> Добавить
+          </button>
+        </div>
       </div>
 
       {showForm && (
@@ -189,6 +202,11 @@ export default function Objects() {
                 <td className="px-4 py-2">
                   <div className="flex gap-1">
                     <button onClick={() => handleEdit(o)} className="p-1.5 hover:bg-blue-50 rounded text-blue-600"><Pencil size={16} /></button>
+                    {o.archived ? (
+                      <button onClick={() => unarchiveObject(o.id)} className="p-1.5 hover:bg-green-50 rounded text-green-600" title="Восстановить"><ArchiveRestore size={16} /></button>
+                    ) : (
+                      <button onClick={() => { if (confirm('Завершить объект? Статистика сохранится, но объект не будет отображаться в списках выбора.')) archiveObject(o.id); }} className="p-1.5 hover:bg-yellow-50 rounded text-yellow-600" title="Завершить"><Archive size={16} /></button>
+                    )}
                     <button onClick={() => handleDelete(o.id)} className="p-1.5 hover:bg-red-50 rounded text-red-600"><Trash2 size={16} /></button>
                   </div>
                 </td>

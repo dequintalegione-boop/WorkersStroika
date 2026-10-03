@@ -266,7 +266,7 @@ export default function Shifts() {
                 <div>
                   <label className="text-sm text-gray-600 mb-1 block">Выберите рабочих *</label>
                   <div className="border rounded-lg max-h-40 overflow-y-auto p-2 space-y-1">
-                    {workers.map((w) => (
+                    {workers.filter(w => !w.archived).map((w) => (
                       <label key={w.id} className="flex items-center gap-2 p-1.5 hover:bg-gray-50 rounded cursor-pointer">
                         <input type="checkbox" checked={selectedWorkers.includes(w.id)} onChange={() => toggleWorker(w.id)} />
                         <span className="text-sm">{w.full_name}</span>
@@ -305,7 +305,7 @@ export default function Shifts() {
                   <select value={form.worker_id} onChange={(e) => setForm({ ...form, worker_id: e.target.value })}
                     className="w-full border rounded-lg px-3 py-2">
                     <option value="">Выберите рабочего</option>
-                    {workers.map((w) => <option key={w.id} value={w.id}>{w.full_name}</option>)}
+                    {workers.filter(w => !w.archived).map((w) => <option key={w.id} value={w.id}>{w.full_name}</option>)}
                   </select>
                 </div>
               )}
@@ -315,7 +315,7 @@ export default function Shifts() {
                 <select value={form.object_id} onChange={(e) => setForm({ ...form, object_id: e.target.value })}
                   className="w-full border rounded-lg px-3 py-2">
                   <option value="">Без объекта</option>
-                  {objects.map((o) => <option key={o.id} value={o.id}>{o.name}</option>)}
+                  {objects.filter(o => !o.archived).map((o) => <option key={o.id} value={o.id}>{o.name}</option>)}
                 </select>
                 {selectedObj && (
                   <p className="text-xs text-gray-500 mt-1">

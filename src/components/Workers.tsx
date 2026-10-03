@@ -1,17 +1,18 @@
 import { useState, useMemo } from 'react';
 import { useStore } from '../store';
 import { Worker, SortDirection } from '../types';
-import { Plus, Pencil, Trash2, X, Search } from 'lucide-react';
+import { Plus, Pencil, Trash2, X, Search, Archive, ArchiveRestore } from 'lucide-react';
 import DetailModal from './DetailModal';
 
 export default function Workers() {
-  const { workers, partners, addWorker, updateWorker, deleteWorker, shifts, calcHours } = useStore();
+  const { workers, partners, addWorker, updateWorker, deleteWorker, archiveWorker, unarchiveWorker, shifts, calcHours } = useStore();
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [search, setSearch] = useState('');
   const [sortField, setSortField] = useState<string>('number');
   const [sortDir, setSortDir] = useState<SortDirection>('asc');
   const [detailId, setDetailId] = useState<string | null>(null);
+  const [showArchived, setShowArchived] = useState(false);
 
   const [form, setForm] = useState<Omit<Worker, 'id'>>({
     number: workers.length + 1, full_name: '', age: 0, phone: '', inviter: 'Я', start_date: ''
@@ -62,7 +63,10 @@ export default function Workers() {
   };
 
   const filtered = useMemo(() => {
-    let result = workers.filter((w) =>
+    let result = workers.filter((w) => {
+      if (showArchived) return w.archived === true;
+      return !w.archived;
+    }).filter((w) =>
       w.full_name.toLowerCase().includes(search.toLowerCase()) ||
       w.phone.includes(search)
     );
@@ -109,10 +113,17 @@ export default function Workers() {
         </button>
       </div>
 
-      <div className="relative">
-        <Search size={18} className="absolute left-3 top-2.5 text-gray-400" />
-        <input type="text" placeholder="Поиск по имени или телефону..." value={search} onChange={(e) => setSearch(e.target.value)}
-          className="w-full pl-10 pr-4 py-2 border rounded-lg" />
+      <div className="flex gap-3 items-center">
+        <div className="relative flex-1">
+          <Search size={18} className="absolute left-3 top-2.5 text-gray-400" />
+          <input type="text" placeholder="Поиск по имени или телефону..." value={search} onChange={(e) => setSearch(e.target.value)}
+            className="w-full pl-10 pr-4 py-2 border rounded-lg" />
+        </div>
+        <button onClick={() => setShowArchived(!showArchived)}
+          className={`flex items-center gap-2 px-4 py-2 rounded-lg border transition ${showArchived ? 'bg-yellow-100 border-yellow-300 text-yellow-700' : 'bg-white hover:bg-gray-50'}`}>
+          <Archive size={16} />
+          <span className="text-sm">{showArchived ? 'Показать активных' : 'Архив'}</span>
+        </button>
       </div>
 
       {showForm && (
@@ -211,6 +222,11 @@ export default function Workers() {
                   <td className="px-4 py-2">
                     <div className="flex gap-1">
                       <button onClick={() => handleEdit(w)} className="p-1.5 hover:bg-blue-50 rounded text-blue-600"><Pencil size={16} /></button>
+                      {w.archived ? (
+                        <button onClick={() => unarchiveWorker(w.id)} className="p-1.5 hover:bg-green-50 rounded text-green-600" title="Восстановить"><ArchiveRestore size={16} /></button>
+                      ) : (
+                        <button onClick={() => { if (confirm('Отправить в архив? Статистика сохранится, но рабочий не будет отображаться в списках выбора.')) archiveWorker(w.id); }} className="p-1.5 hover:bg-yellow-50 rounded text-yellow-600" title="В архив"><Archive size={16} /></button>
+                      )}
                       <button onClick={() => handleDelete(w.id)} className="p-1.5 hover:bg-red-50 rounded text-red-600"><Trash2 size={16} /></button>
                     </div>
                   </td>

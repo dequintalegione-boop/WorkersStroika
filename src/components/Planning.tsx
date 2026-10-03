@@ -10,6 +10,11 @@ export default function Planning() {
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState({ date: '', worker_id: '', object_id: '', note: '' });
 
+  const handleDayClick = (day: Date) => {
+    setForm({ date: format(day, 'yyyy-MM-dd'), worker_id: '', object_id: '', note: '' });
+    setShowForm(true);
+  };
+
   const today = new Date();
   const weekStart = addDays(startOfWeek(today, { locale: ru }), weekOffset * 7);
   const weekDays = eachDayOfInterval({ start: weekStart, end: addDays(weekStart, 6) });
@@ -89,9 +94,12 @@ export default function Planning() {
             const dayPlanning = getPlanningForDay(day);
             const isToday = format(day, 'yyyy-MM-dd') === format(today, 'yyyy-MM-dd');
             return (
-              <div key={day.toISOString()} className={`border rounded-lg p-2 min-h-[120px] ${isToday ? 'bg-blue-50 border-blue-300' : ''}`}>
+              <div key={day.toISOString()} 
+                onClick={() => handleDayClick(day)}
+                className={`border rounded-lg p-2 min-h-[120px] cursor-pointer hover:border-blue-400 transition ${isToday ? 'bg-blue-50 border-blue-300' : ''}`}>
                 <div className={`text-sm font-medium mb-2 ${isToday ? 'text-blue-600' : 'text-gray-700'}`}>
                   {format(day, 'EEE, d MMM', { locale: ru })}
+                  <span className="text-xs text-gray-400 ml-1">+</span>
                 </div>
                 <div className="space-y-1">
                   {dayPlanning.map((p) => {
@@ -189,7 +197,7 @@ export default function Planning() {
                 <select value={form.worker_id} onChange={(e) => setForm({ ...form, worker_id: e.target.value })}
                   className="w-full border rounded-lg px-3 py-2">
                   <option value="">Выберите рабочего</option>
-                  {workers.map((w) => <option key={w.id} value={w.id}>{w.full_name}</option>)}
+                  {workers.filter(w => !w.archived).map((w) => <option key={w.id} value={w.id}>{w.full_name}</option>)}
                 </select>
               </div>
               <div>
@@ -197,7 +205,7 @@ export default function Planning() {
                 <select value={form.object_id} onChange={(e) => setForm({ ...form, object_id: e.target.value })}
                   className="w-full border rounded-lg px-3 py-2">
                   <option value="">Не указан</option>
-                  {objects.map((o) => <option key={o.id} value={o.id}>{o.name}</option>)}
+                  {objects.filter(o => !o.archived).map((o) => <option key={o.id} value={o.id}>{o.name}</option>)}
                 </select>
               </div>
               <div>
