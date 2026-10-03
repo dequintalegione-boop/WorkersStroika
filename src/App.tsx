@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Page } from './types';
 import Sidebar from './components/Sidebar';
 import Dashboard from './components/Dashboard';
@@ -10,13 +10,23 @@ import Statistics from './components/Statistics';
 import ImportExport from './components/ImportExport';
 import Calendar from './components/Calendar';
 import Planning from './components/Planning';
-import { Menu, X, Download } from 'lucide-react';
+import { Menu, X, Download, Sun, Moon } from 'lucide-react';
 import { useInstallPrompt } from './hooks/useInstallPrompt';
+import { useStore } from './store';
 
 export default function App() {
   const [currentPage, setCurrentPage] = useState<Page>('dashboard');
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const { isInstallable, isInstalled, install } = useInstallPrompt();
+  const { theme, setTheme } = useStore();
+
+  useEffect(() => {
+    document.documentElement.classList.toggle('dark', theme === 'dark');
+  }, [theme]);
+
+  const toggleTheme = () => {
+    setTheme(theme === 'light' ? 'dark' : 'light');
+  };
 
   const renderPage = () => {
     switch (currentPage) {
@@ -68,6 +78,13 @@ export default function App() {
             </h1>
           </div>
           <div className="flex items-center gap-3">
+            <button
+              onClick={toggleTheme}
+              className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition"
+              title={theme === 'light' ? 'Тёмная тема' : 'Светлая тема'}
+            >
+              {theme === 'light' ? <Moon size={20} className="text-gray-600" /> : <Sun size={20} className="text-yellow-400" />}
+            </button>
             {isInstallable && !isInstalled && (
               <button
                 onClick={install}
@@ -78,7 +95,7 @@ export default function App() {
               </button>
             )}
             <div className="text-sm text-gray-400">
-              БригадаУчёт v2.0
+              БригадаУчёт v2.1
             </div>
           </div>
         </header>

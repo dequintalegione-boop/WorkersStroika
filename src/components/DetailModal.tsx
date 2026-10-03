@@ -31,6 +31,11 @@ export default function DetailModal({ type, id, onClose }: DetailModalProps) {
       const objectsWorked = new Set(workerShifts.filter((s) => s.object_id).map((s) => s.object_id));
       const avgSalary = workerShifts.length > 0 ? totalSalary / workerShifts.length : 0;
       const avgHourlyRate = totalHours > 0 ? totalSalary / (totalHours / 60) : 0;
+      
+      // Расчёт вклада: сколько принёс мне и партнёру
+      const totalMyShare = workerShifts.reduce((sum, s) => sum + s.my_share, 0);
+      const totalPartnerShare = workerShifts.reduce((sum, s) => sum + calcPartnerShare(s), 0);
+      const myNetFromWorker = totalMyShare - totalPartnerShare;
 
       return {
         title: worker.full_name,
@@ -44,10 +49,12 @@ export default function DetailModal({ type, id, onClose }: DetailModalProps) {
         stats: [
           { label: 'Всего смен', value: workerShifts.length, color: 'blue' },
           { label: 'Общее время', value: formatMinutes(totalHours), color: 'purple' },
-          { label: 'Заработок', value: formatMoney(totalSalary), color: 'green' },
+          { label: 'Заработок (ЗП)', value: formatMoney(totalSalary), color: 'green' },
           { label: 'Средняя ЗП/смена', value: formatMoney(avgSalary), color: 'orange' },
           { label: 'Часовая ставка', value: formatMoney(avgHourlyRate), color: 'cyan' },
           { label: 'Объектов', value: objectsWorked.size, color: 'indigo' },
+          { label: '💰 Принёс мне (чистыми)', value: formatMoney(myNetFromWorker), color: 'green' },
+          ...(worker.inviter !== 'Я' ? [{ label: '🤝 Принёс партнёру', value: formatMoney(totalPartnerShare), color: 'orange' }] : []),
         ],
         shifts: workerShifts.sort((a, b) => b.date.localeCompare(a.date)).slice(0, 20),
       };

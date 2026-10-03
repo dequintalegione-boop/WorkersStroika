@@ -6,6 +6,7 @@ export interface Worker {
   phone: string;
   inviter: string;
   start_date: string;
+  archived?: boolean;
 }
 
 export interface Partner {
@@ -20,6 +21,7 @@ export interface WorkObject {
   name: string;
   direction: string;
   address: string;
+  archived?: boolean;
 }
 
 export interface Shift {
@@ -50,3 +52,5 @@ export interface PlanningEntry {
 export type Page = 'dashboard' | 'workers' | 'partners' | 'objects' | 'shifts' | 'statistics' | 'import' | 'calendar' | 'planning';
 
 export type SortDirection = 'asc' | 'desc' | null;
+
+export type Theme = 'light' | 'dark';
