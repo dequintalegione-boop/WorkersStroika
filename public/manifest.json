@@ -1,0 +1,17 @@
+{
+  "name": "БригадаУчёт — Учёт рабочих бригад",
+  "short_name": "БригадаУчёт",
+  "description": "Учёт рабочих бригад и подработок: смены, заработки, партнёры, объекты, дашборд",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#f3f4f6",
+  "theme_color": "#1e40af",
+  "orientation": "any",
+  "icons": [
+    {
+      "src": "/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml"
+    }
+  ]
+}

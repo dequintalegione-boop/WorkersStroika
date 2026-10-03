@@ -139,6 +139,51 @@ export default function ImportExport() {
           Связи восстанавливаются по именам при первом импорте, далее система работает на ID.
         </p>
       </div>
+
+      {/* Install instructions */}
+      <div className="bg-blue-50 border border-blue-200 rounded-xl p-6">
+        <h4 className="font-semibold text-blue-800 mb-3 text-lg">💻 Как установить на компьютер</h4>
+        <div className="space-y-4 text-sm text-blue-700">
+          <div>
+            <h5 className="font-bold mb-1">Способ 1: Установить как приложение (PWA) — РЕКОМЕНДУЕТСЯ</h5>
+            <ol className="list-decimal list-inside space-y-1 ml-2">
+              <li>Нажмите кнопку <b>«Установить на ПК»</b> в правом верхнем углу (если она есть)</li>
+              <li>Или: откройте меню браузера (⋮ или ⋯) → <b>«Установить приложение»</b> / <b>«Добавить на рабочий стол»</b></li>
+              <li>Подтвердите установку — на рабочем столе появится ярлык</li>
+              <li>Теперь приложение открывается как обычная программа, без адресной строки!</li>
+            </ol>
+            <p className="mt-2 text-xs text-blue-600">
+              ✅ Работает в Chrome, Edge, Яндекс.Браузере, Opera на Windows/macOS/Linux<br/>
+              ✅ На Android: меню → «Добавить на главный экран»<br/>
+              ✅ На iOS Safari: кнопка «Поделиться» → «На экран Домой»
+            </p>
+          </div>
+
+          <div className="border-t border-blue-200 pt-3">
+            <h5 className="font-bold mb-1">Способ 2: Запустить локально (для разработчиков)</h5>
+            <ol className="list-decimal list-inside space-y-1 ml-2">
+              <li>Установите <a href="https://nodejs.org" target="_blank" className="underline font-medium">Node.js</a> (версия 18+)</li>
+              <li>Скачайте исходный код проекта</li>
+              <li>Откройте терминал в папке проекта</li>
+              <li>Выполните: <code className="bg-blue-100 px-1.5 py-0.5 rounded">npm install</code></li>
+              <li>Выполните: <code className="bg-blue-100 px-1.5 py-0.5 rounded">npm run build</code></li>
+              <li>Готово! Файлы будут в папке <code className="bg-blue-100 px-1.5 py-0.5 rounded">dist/</code> — откройте <code className="bg-blue-100 px-1.5 py-0.5 rounded">dist/index.html</code> в браузере</li>
+            </ol>
+          </div>
+
+          <div className="border-t border-blue-200 pt-3">
+            <h5 className="font-bold mb-1">Способ 3: Просто сохранить страницу</h5>
+            <ol className="list-decimal list-inside space-y-1 ml-2">
+              <li>Нажмите <b>Ctrl+S</b> (или Cmd+S на Mac)</li>
+              <li>Сохраните как «Веб-страница полностью»</li>
+              <li>Откройте сохранённый файл в браузере</li>
+            </ol>
+            <p className="mt-2 text-xs text-blue-600">
+              ⚠️ Этот способ менее надёжен — лучше используйте Способ 1
+            </p>
+          </div>
+        </div>
+      </div>
     </div>
   );
 }

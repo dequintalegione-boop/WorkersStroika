@@ -8,11 +8,13 @@ import Objects from './components/Objects';
 import Shifts from './components/Shifts';
 import Statistics from './components/Statistics';
 import ImportExport from './components/ImportExport';
-import { Menu, X } from 'lucide-react';
+import { Menu, X, Download } from 'lucide-react';
+import { useInstallPrompt } from './hooks/useInstallPrompt';
 
 export default function App() {
   const [currentPage, setCurrentPage] = useState<Page>('dashboard');
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const { isInstallable, isInstalled, install } = useInstallPrompt();
 
   const renderPage = () => {
     switch (currentPage) {
@@ -59,8 +61,19 @@ export default function App() {
               {currentPage === 'import' && '💾 Данные'}
             </h1>
           </div>
-          <div className="text-sm text-gray-400">
-            БригадаУчёт v1.0
+          <div className="flex items-center gap-3">
+            {isInstallable && !isInstalled && (
+              <button
+                onClick={install}
+                className="flex items-center gap-2 bg-green-600 text-white px-3 py-1.5 rounded-lg hover:bg-green-700 transition text-sm font-medium animate-pulse"
+              >
+                <Download size={16} />
+                <span className="hidden sm:inline">Установить на ПК</span>
+              </button>
+            )}
+            <div className="text-sm text-gray-400">
+              БригадаУчёт v1.0
+            </div>
           </div>
         </header>
 
