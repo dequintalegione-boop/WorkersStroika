@@ -5,7 +5,7 @@ import { Plus, Pencil, Trash2, X, Search, Archive, ArchiveRestore } from 'lucide
 import DetailModal from './DetailModal';
 
 export default function Workers() {
-  const { workers, partners, addWorker, updateWorker, deleteWorker, archiveWorker, unarchiveWorker, shifts, calcHours } = useStore();
+  const { workers, partners, addWorker, updateWorker, deleteWorker, archiveWorker, unarchiveWorker, shifts, calcHours, getInviterName } = useStore();
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [search, setSearch] = useState('');
@@ -15,19 +15,17 @@ export default function Workers() {
   const [showArchived, setShowArchived] = useState(false);
 
   const [form, setForm] = useState<Omit<Worker, 'id'>>({
-    number: workers.length + 1, full_name: '', age: 0, phone: '', inviter: 'Я', start_date: ''
+    number: workers.length + 1, full_name: '', age: 0, phone: '', inviter_id: 'me', start_date: ''
   });
 
-  const inviterOptions = ['Я', ...partners.map((p) => p.full_name)];
-
   const resetForm = () => {
-    setForm({ number: workers.length + 1, full_name: '', age: 0, phone: '', inviter: 'Я', start_date: '' });
+    setForm({ number: workers.length + 1, full_name: '', age: 0, phone: '', inviter_id: 'me', start_date: '' });
     setEditingId(null);
     setShowForm(false);
   };
 
   const handleEdit = (w: Worker) => {
-    setForm({ number: w.number, full_name: w.full_name, age: w.age, phone: w.phone, inviter: w.inviter, start_date: w.start_date });
+    setForm({ number: w.number, full_name: w.full_name, age: w.age, phone: w.phone, inviter_id: w.inviter_id, start_date: w.start_date });
     setEditingId(w.id);
     setShowForm(true);
   };
@@ -78,7 +76,7 @@ export default function Workers() {
           case 'number': aVal = a.number; bVal = b.number; break;
           case 'full_name': aVal = a.full_name; bVal = b.full_name; break;
           case 'age': aVal = a.age; bVal = b.age; break;
-          case 'inviter': aVal = a.inviter; bVal = b.inviter; break;
+          case 'inviter': aVal = getInviterName(a.inviter_id); bVal = getInviterName(b.inviter_id); break;
           case 'start_date': aVal = a.start_date; bVal = b.start_date; break;
           case 'shifts': aVal = shifts.filter((s) => s.worker_id === a.id).length; bVal = shifts.filter((s) => s.worker_id === b.id).length; break;
           case 'earned': aVal = shifts.filter((s) => s.worker_id === a.id).reduce((sum, s) => sum + s.salary, 0); bVal = shifts.filter((s) => s.worker_id === b.id).reduce((sum, s) => sum + s.salary, 0); break;
@@ -92,7 +90,7 @@ export default function Workers() {
     }
 
     return result;
-  }, [workers, search, sortField, sortDir, shifts]);
+  }, [workers, search, sortField, sortDir, shifts, getInviterName]);
 
   const getWorkerStats = (workerId: string) => {
     const ws = shifts.filter((s) => s.worker_id === workerId);
@@ -158,9 +156,10 @@ export default function Workers() {
               </div>
               <div>
                 <label className="text-sm text-gray-600">Кто пригласил</label>
-                <select value={form.inviter} onChange={(e) => setForm({ ...form, inviter: e.target.value })}
+                <select value={form.inviter_id} onChange={(e) => setForm({ ...form, inviter_id: e.target.value })}
                   className="w-full border rounded-lg px-3 py-2">
-                  {inviterOptions.map((o) => <option key={o} value={o}>{o}</option>)}
+                  <option value="me">Я</option>
+                  {partners.map((p) => <option key={p.id} value={p.id}>{p.full_name}</option>)}
                 </select>
               </div>
               <div>
@@ -201,6 +200,7 @@ export default function Workers() {
           <tbody>
             {filtered.map((w) => {
               const stats = getWorkerStats(w.id);
+              const inviterName = getInviterName(w.inviter_id);
               return (
                 <tr key={w.id} className="border-t hover:bg-gray-50">
                   <td className="px-4 py-2">{w.number}</td>
@@ -212,8 +212,8 @@ export default function Workers() {
                   <td className="px-4 py-2">{w.age || '—'}</td>
                   <td className="px-4 py-2">{w.phone || '—'}</td>
                   <td className="px-4 py-2">
-                    <span className={`px-2 py-0.5 rounded text-xs ${w.inviter === 'Я' ? 'bg-blue-100 text-blue-700' : 'bg-green-100 text-green-700'}`}>
-                      {w.inviter}
+                    <span className={`px-2 py-0.5 rounded text-xs ${w.inviter_id === 'me' ? 'bg-blue-100 text-blue-700' : 'bg-green-100 text-green-700'}`}>
+                      {inviterName}
                     </span>
                   </td>
                   <td className="px-4 py-2">{w.start_date || '—'}</td>

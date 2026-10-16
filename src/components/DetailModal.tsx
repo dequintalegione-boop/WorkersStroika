@@ -19,7 +19,7 @@ function formatMoney(n: number): string {
 }
 
 export default function DetailModal({ type, id, onClose }: DetailModalProps) {
-  const { workers, partners, objects, shifts, calcHours, calcPartnerShare, getWorker, getObject } = useStore();
+  const { workers, partners, objects, shifts, calcHours, calcPartnerShare, getWorker, getObject, getInviterName } = useStore();
 
   const data = useMemo(() => {
     if (type === 'worker') {
@@ -37,13 +37,20 @@ export default function DetailModal({ type, id, onClose }: DetailModalProps) {
       const totalPartnerShare = workerShifts.reduce((sum, s) => sum + calcPartnerShare(s), 0);
       const myNetFromWorker = totalMyShare - totalPartnerShare;
 
+      // Отзывы
+      const reviews = workerShifts.filter((s) => s.review).map((s) => ({
+        date: s.date,
+        review: s.review,
+        object: s.object_id ? getObject(s.object_id)?.name : undefined
+      }));
+
       return {
         title: worker.full_name,
         subtitle: `Рабочий #${worker.number}`,
         info: [
           { label: 'Возраст', value: worker.age },
           { label: 'Телефон', value: worker.phone || '—' },
-          { label: 'Пригласил', value: worker.inviter },
+          { label: 'Пригласил', value: getInviterName(worker.inviter_id) },
           { label: 'Дата начала', value: worker.start_date || '—' },
         ],
         stats: [
@@ -54,16 +61,17 @@ export default function DetailModal({ type, id, onClose }: DetailModalProps) {
           { label: 'Часовая ставка', value: formatMoney(avgHourlyRate), color: 'cyan' },
           { label: 'Объектов', value: objectsWorked.size, color: 'indigo' },
           { label: '💰 Принёс мне (чистыми)', value: formatMoney(myNetFromWorker), color: 'green' },
-          ...(worker.inviter !== 'Я' ? [{ label: '🤝 Принёс партнёру', value: formatMoney(totalPartnerShare), color: 'orange' }] : []),
+          ...(worker.inviter_id !== 'me' ? [{ label: '🤝 Принёс партнёру', value: formatMoney(totalPartnerShare), color: 'orange' }] : []),
         ],
         shifts: workerShifts.sort((a, b) => b.date.localeCompare(a.date)).slice(0, 20),
+        reviews,
       };
     }
 
     if (type === 'partner') {
       const partner = partners.find((p) => p.id === id);
       if (!partner) return null;
-      const invitedWorkers = workers.filter((w) => w.inviter === partner.full_name);
+      const invitedWorkers = workers.filter((w) => w.inviter_id === partner.id);
       const workerIds = invitedWorkers.map((w) => w.id);
       const partnerShifts = shifts.filter((s) => workerIds.includes(s.worker_id));
       const totalHours = partnerShifts.reduce((sum, s) => sum + calcHours(s), 0);
@@ -199,6 +207,24 @@ export default function DetailModal({ type, id, onClose }: DetailModalProps) {
               </table>
             </div>
           </div>
+
+          {/* Reviews for worker */}
+          {type === 'worker' && data.reviews && data.reviews.length > 0 && (
+            <div>
+              <h4 className="font-semibold text-gray-700 mb-2">💬 Отзывы ({data.reviews.length})</h4>
+              <div className="space-y-2 max-h-60 overflow-y-auto">
+                {data.reviews.map((r, i) => (
+                  <div key={i} className="bg-yellow-50 border border-yellow-200 rounded-lg p-3">
+                    <div className="flex justify-between items-center mb-1">
+                      <span className="text-xs text-gray-500">{r.date}</span>
+                      {r.object && <span className="text-xs text-blue-600">{r.object}</span>}
+                    </div>
+                    <p className="text-sm text-gray-700">{r.review}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
       </div>
     </div>

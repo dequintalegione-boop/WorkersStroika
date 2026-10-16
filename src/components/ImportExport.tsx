@@ -3,7 +3,7 @@ import { useStore } from '../store';
 import { Download, Upload, FileJson } from 'lucide-react';
 
 export default function ImportExport() {
-  const { exportData, importData, workers, partners, objects, shifts } = useStore();
+  const { exportData, importData, workers, partners, objects, shifts, getInviterName } = useStore();
   const fileRef = useRef<HTMLInputElement>(null);
 
   const handleExport = () => {
@@ -45,7 +45,7 @@ export default function ImportExport() {
     const csvContent = [
       '=== РАБОЧИЕ ===',
       '№,ФИО,Возраст,Телефон,Кто пригласил,Дата начала',
-      ...workers.map((w) => `${w.number},"${w.full_name}",${w.age},"${w.phone}","${w.inviter}",${w.start_date}`),
+      ...workers.map((w) => `${w.number},"${w.full_name}",${w.age},"${w.phone}","${getInviterName(w.inviter_id)}",${w.start_date}`),
       '',
       '=== ПАРТНЁРЫ ===',
       '№,ФИО',

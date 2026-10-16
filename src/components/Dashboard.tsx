@@ -132,27 +132,29 @@ export default function Dashboard() {
   const topPartners = useMemo(() => {
     const partnerWorkers = new Map<string, string[]>();
     workers.forEach((w) => {
-      if (w.inviter && w.inviter !== 'Я') {
-        if (!partnerWorkers.has(w.inviter)) partnerWorkers.set(w.inviter, []);
-        partnerWorkers.get(w.inviter)!.push(w.id);
+      if (w.inviter_id && w.inviter_id !== 'me') {
+        if (!partnerWorkers.has(w.inviter_id)) partnerWorkers.set(w.inviter_id, []);
+        partnerWorkers.get(w.inviter_id)!.push(w.id);
       }
     });
     const result: { name: string; invited: number; shifts: number; partnerEarn: number }[] = [];
-    partnerWorkers.forEach((workerIds, partnerName) => {
+    partnerWorkers.forEach((workerIds, partnerId) => {
+      const partner = partners.find(p => p.id === partnerId);
+      if (!partner) return;
       const inPeriod = workerIds.filter((wid) => {
         const w = getWorker(wid);
         return w && w.start_date >= dateFrom && w.start_date <= dateTo;
       });
       const shiftsInPeriod = filteredShifts.filter((s) => workerIds.includes(s.worker_id));
       result.push({
-        name: partnerName,
+        name: partner.full_name,
         invited: inPeriod.length,
         shifts: shiftsInPeriod.length,
         partnerEarn: shiftsInPeriod.reduce((sum, s) => sum + calcPartnerShare(s), 0)
       });
     });
     return result.sort((a, b) => b.invited - a.invited).slice(0, 3);
-  }, [workers, filteredShifts, calcPartnerShare, getWorker, dateFrom, dateTo]);
+  }, [workers, partners, filteredShifts, calcPartnerShare, getWorker, dateFrom, dateTo]);
 
   // Last 5 shifts
   const lastShifts = useMemo(() => {

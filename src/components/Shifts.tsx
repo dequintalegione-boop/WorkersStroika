@@ -382,7 +382,7 @@ export default function Shifts() {
                 {!overridePartner && !multiMode && form.worker_id && (
                   <p className="text-xs text-gray-500 mt-1">
                     Авто: {formatMoney(calcPartnerShare(form as Shift))}
-                    {getWorker(form.worker_id)?.inviter === 'Я' && ' (пригласил Я → 0)'}
+                    {getWorker(form.worker_id)?.inviter_id === 'me' && ' (пригласил Я → 0)'}
                   </p>
                 )}
               </div>

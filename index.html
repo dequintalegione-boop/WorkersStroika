@@ -11,6 +11,17 @@
     <meta name="apple-mobile-web-app-title" content="БригадаУчёт" />
     <link rel="manifest" href="/manifest.json" />
     <link rel="icon" type="image/svg+xml" href="/icon.svg" />
+    <script>
+      // Prevent theme flash
+      (function() {
+        try {
+          const stored = JSON.parse(localStorage.getItem('brigade-tracker-storage') || '{}');
+          if (stored.state && stored.state.theme === 'dark') {
+            document.documentElement.classList.add('dark');
+          }
+        } catch(e) {}
+      })();
+    </script>
     <link
       rel="stylesheet"
       href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css"

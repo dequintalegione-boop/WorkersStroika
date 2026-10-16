@@ -47,7 +47,9 @@ interface AppState {
   // Helpers
   getWorker: (id: string) => Worker | undefined;
   getObject: (id: string) => WorkObject | undefined;
+  getPartner: (id: string) => Partner | undefined;
   getInviterAuto: (workerId: string) => string;
+  getInviterName: (inviterId: string) => string; // возвращает отображаемое имя
   calcPartnerShare: (shift: Shift | Omit<Shift, 'id'>) => number;
   calcHours: (shift: Shift | Omit<Shift, 'id'>) => number;
 
@@ -135,9 +137,16 @@ export const useStore = create<AppState>()(
 
       getWorker: (id) => get().workers.find((w) => w.id === id),
       getObject: (id) => get().objects.find((o) => o.id === id),
+      getPartner: (id) => get().partners.find((p) => p.id === id),
+      getInviterName: (inviterId) => {
+        if (inviterId === 'me') return 'Я';
+        const partner = get().partners.find((p) => p.id === inviterId);
+        return partner?.full_name || '';
+      },
       getInviterAuto: (workerId) => {
         const worker = get().workers.find((w) => w.id === workerId);
-        return worker?.inviter || '';
+        if (!worker) return '';
+        return get().getInviterName(worker.inviter_id);
       },
       calcPartnerShare: (shift) => {
         if (shift.partner_share_override !== null && shift.partner_share_override !== undefined) return shift.partner_share_override;
@@ -177,13 +186,31 @@ export const useStore = create<AppState>()(
     }),
     { 
       name: 'brigade-tracker-storage',
-      version: 3,
+      version: 4,
       migrate: (persistedState: any, version: number) => {
         if (version < 2) {
           persistedState.planning = persistedState.planning || [];
         }
         if (version < 3) {
           persistedState.theme = persistedState.theme || 'light';
+        }
+        if (version < 4) {
+          // Миграция: inviter (строка) → inviter_id (ID партнёра или 'me')
+          if (persistedState.workers) {
+            persistedState.workers = persistedState.workers.map((w: any) => {
+              if (w.inviter && !w.inviter_id) {
+                if (w.inviter === 'Я') {
+                  return { ...w, inviter_id: 'me' };
+                } else {
+                  // Найти партнёра по имени
+                  const partner = persistedState.partners?.find((p: any) => p.full_name === w.inviter);
+                  return { ...w, inviter_id: partner?.id || 'me' };
+                }
+              }
+              if (!w.inviter_id) return { ...w, inviter_id: 'me' };
+              return w;
+            });
+          }
         }
         return persistedState;
       }
