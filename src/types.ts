@@ -4,7 +4,7 @@ export interface Worker {
   full_name: string;
   age: number;
   phone: string;
-  inviter: string;
+  inviter_id: string; // 'me' или ID партнёра
   start_date: string;
   archived?: boolean;
 }

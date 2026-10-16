@@ -1,19 +1,16 @@
 import { useState, useMemo } from 'react';
 import { useStore } from '../store';
+import { PlanningEntry } from '../types';
 import { format, addDays, startOfWeek, eachDayOfInterval } from 'date-fns';
 import { ru } from 'date-fns/locale';
-import { Plus, Trash2, Check, X } from 'lucide-react';
+import { Plus, Trash2, Check, X, Pencil } from 'lucide-react';
 
 export default function Planning() {
   const { planning, workers, objects, addPlanning, updatePlanning, deletePlanning, getWorker, getObject } = useStore();
   const [weekOffset, setWeekOffset] = useState(0);
   const [showForm, setShowForm] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState({ date: '', worker_id: '', object_id: '', note: '' });
-
-  const handleDayClick = (day: Date) => {
-    setForm({ date: format(day, 'yyyy-MM-dd'), worker_id: '', object_id: '', note: '' });
-    setShowForm(true);
-  };
 
   const today = new Date();
   const weekStart = addDays(startOfWeek(today, { locale: ru }), weekOffset * 7);
@@ -21,12 +18,32 @@ export default function Planning() {
 
   const resetForm = () => {
     setForm({ date: '', worker_id: '', object_id: '', note: '' });
+    setEditingId(null);
     setShowForm(false);
+  };
+
+  const handleDayClick = (day: Date) => {
+    // Клик на пустое место в дне — добавление
+    setForm({ date: format(day, 'yyyy-MM-dd'), worker_id: '', object_id: '', note: '' });
+    setEditingId(null);
+    setShowForm(true);
+  };
+
+  const handleEntryClick = (e: React.MouseEvent, entry: PlanningEntry) => {
+    // Клик на запись — редактирование
+    e.stopPropagation();
+    setForm({ date: entry.date, worker_id: entry.worker_id, object_id: entry.object_id, note: entry.note });
+    setEditingId(entry.id);
+    setShowForm(true);
   };
 
   const handleSave = () => {
     if (!form.date || !form.worker_id) return;
-    addPlanning({ ...form, confirmed: false });
+    if (editingId) {
+      updatePlanning(editingId, form);
+    } else {
+      addPlanning({ ...form, confirmed: false });
+    }
     resetForm();
   };
 
@@ -44,7 +61,6 @@ export default function Planning() {
     return planning.filter((p) => p.date === dateStr);
   };
 
-  // Group by worker for the week
   const weekPlanning = useMemo(() => {
     const dateRange = weekDays.map((d) => format(d, 'yyyy-MM-dd'));
     return planning.filter((p) => dateRange.includes(p.date));
@@ -59,7 +75,7 @@ export default function Planning() {
     <div className="p-6 space-y-4">
       <div className="flex items-center justify-between">
         <h2 className="text-2xl font-bold text-gray-800">📋 Планирование занятости</h2>
-        <button onClick={() => setShowForm(true)}
+        <button onClick={() => { resetForm(); setShowForm(true); }}
           className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition">
           <Plus size={18} /> Забронировать
         </button>
@@ -106,11 +122,16 @@ export default function Planning() {
                     const w = getWorker(p.worker_id);
                     const o = p.object_id ? getObject(p.object_id) : null;
                     return (
-                      <div key={p.id} className={`text-xs rounded p-1.5 ${p.confirmed ? 'bg-green-100 text-green-700' : 'bg-yellow-100 text-yellow-700'}`}>
-                        <div className="font-medium truncate">{w?.full_name || '?'}</div>
+                      <div key={p.id} 
+                        onClick={(e) => handleEntryClick(e, p)}
+                        className={`text-xs rounded p-1.5 cursor-pointer hover:ring-2 hover:ring-blue-400 ${p.confirmed ? 'bg-green-100 text-green-700' : 'bg-yellow-100 text-yellow-700'}`}>
+                        <div className="font-medium truncate flex items-center gap-1">
+                          <Pencil size={10} className="opacity-50" />
+                          {w?.full_name || '?'}
+                        </div>
                         {o && <div className="truncate opacity-75">{o.name}</div>}
                         {p.note && <div className="truncate opacity-60 italic">{p.note}</div>}
-                        <div className="flex gap-1 mt-1">
+                        <div className="flex gap-1 mt-1" onClick={(e) => e.stopPropagation()}>
                           <button onClick={() => handleConfirm(p.id)} className="p-0.5 hover:bg-white/50 rounded" title={p.confirmed ? 'Отменить' : 'Подтвердить'}>
                             {p.confirmed ? <Check size={12} /> : <X size={12} />}
                           </button>
@@ -183,14 +204,14 @@ export default function Planning() {
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
           <div className="bg-white rounded-xl p-6 w-full max-w-md shadow-2xl">
             <div className="flex justify-between items-center mb-4">
-              <h3 className="text-lg font-bold">Забронировать рабочего</h3>
+              <h3 className="text-lg font-bold">{editingId ? 'Редактировать бронь' : 'Забронировать рабочего'}</h3>
               <button onClick={resetForm}><X size={20} /></button>
             </div>
             <div className="space-y-3">
               <div>
                 <label className="text-sm text-gray-600">Дата *</label>
                 <input type="date" value={form.date} onChange={(e) => setForm({ ...form, date: e.target.value })}
-                  className="w-full border rounded-lg px-3 py-2" min={format(today, 'yyyy-MM-dd')} />
+                  className="w-full border rounded-lg px-3 py-2" />
               </div>
               <div>
                 <label className="text-sm text-gray-600">Рабочий *</label>
@@ -216,7 +237,7 @@ export default function Planning() {
             </div>
             <div className="flex gap-3 mt-5">
               <button onClick={handleSave} className="flex-1 bg-blue-600 text-white py-2 rounded-lg hover:bg-blue-700">
-                Забронировать
+                {editingId ? 'Сохранить' : 'Забронировать'}
               </button>
               <button onClick={resetForm} className="flex-1 border py-2 rounded-lg hover:bg-gray-50">Отмена</button>
             </div>

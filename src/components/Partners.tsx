@@ -58,7 +58,7 @@ export default function Partners() {
 
   const stats = useMemo(() => {
     let result = partners.map((p) => {
-      const invitedWorkers = workers.filter((w) => w.inviter === p.full_name);
+      const invitedWorkers = workers.filter((w) => w.inviter_id === p.id);
       const workerIds = invitedWorkers.map((w) => w.id);
       const partnerShifts = shifts.filter((s) => workerIds.includes(s.worker_id));
       return {
