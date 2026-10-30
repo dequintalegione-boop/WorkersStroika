@@ -20,6 +20,7 @@ export default function App() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const { isInstallable, isInstalled, install } = useInstallPrompt();
   const { theme, setTheme } = useStore();
+  const isLocalVersion = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
 
   useEffect(() => {
     document.documentElement.classList.toggle('dark', theme === 'dark');
@@ -98,7 +99,7 @@ export default function App() {
               </button>
             )}
             <div className="text-sm text-gray-400">
-              БригадаУчёт v2.1
+              {isLocalVersion ? 'ЛОКАЛЬНО · v2.1' : 'БригадаУчёт v2.1'}
             </div>
           </div>
         </header>

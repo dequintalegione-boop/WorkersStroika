@@ -1,4 +1,4 @@
-const CACHE_NAME = "brigade-tracker-v3";
+const CACHE_NAME = "brigade-tracker-v4";
 const PRECACHE_URLS = ["/", "/index.html", "/manifest.json"];
 
 self.addEventListener("install", event => {
