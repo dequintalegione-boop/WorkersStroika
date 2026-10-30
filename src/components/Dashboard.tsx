@@ -1,5 +1,6 @@
 import { useState, useMemo } from 'react';
 import { useStore } from '../store';
+import { DashboardMode } from '../types';
 import {
   BarChart, Bar, LineChart, Line, PieChart, Pie, Cell,
   XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer
@@ -20,26 +21,38 @@ function formatMoney(n: number): string {
 }
 
 export default function Dashboard() {
-  const { shifts, workers, objects, partners, calcHours, calcPartnerShare, getWorker, getObject } = useStore();
+  const { shifts, workers, objects, partners, calcHours, calcPartnerShare, getWorker, getObject, getShiftSalary } = useStore();
 
   const today = format(new Date(), 'yyyy-MM-dd');
   const monthAgo = format(new Date(Date.now() - 30 * 86400000), 'yyyy-MM-dd');
   const [dateFrom, setDateFrom] = useState(monthAgo);
   const [dateTo, setDateTo] = useState(today);
+  const [dashboardMode, setDashboardMode] = useState<DashboardMode>('active');
 
   const filteredShifts = useMemo(() => {
     if (!dateFrom || !dateTo) return [];
     return shifts.filter((s) => {
       const d = s.date;
-      return d >= dateFrom && d <= dateTo;
+      const inDateRange = d >= dateFrom && d <= dateTo;
+      if (!inDateRange) return false;
+      
+      if (dashboardMode === 'active') {
+        const worker = getWorker(s.worker_id);
+        const obj = s.object_id ? getObject(s.object_id) : null;
+        // Exclude archived workers
+        if (worker?.archived) return false;
+        // Exclude archived objects (but include shifts without object)
+        if (obj?.archived) return false;
+      }
+      return true;
     });
-  }, [shifts, dateFrom, dateTo]);
+  }, [shifts, dateFrom, dateTo, dashboardMode, getWorker, getObject]);
 
   const kpi = useMemo(() => {
     const myNet = filteredShifts.reduce((sum, s) => sum + s.my_share - calcPartnerShare(s), 0);
     const totalShifts = filteredShifts.length;
     const totalHours = filteredShifts.reduce((sum, s) => sum + calcHours(s), 0);
-    const totalSalary = filteredShifts.reduce((sum, s) => sum + s.salary, 0);
+    const totalSalary = filteredShifts.reduce((sum, s) => sum + getShiftSalary(s), 0);
     const totalPartner = filteredShifts.reduce((sum, s) => sum + calcPartnerShare(s), 0);
     const avgCheck = totalShifts > 0 ? totalSalary / totalShifts : 0;
     const activeWorkers = new Set(filteredShifts.map((s) => s.worker_id)).size;
@@ -91,7 +104,7 @@ export default function Dashboard() {
   const moneyStructure = useMemo(() => {
     const myNet = filteredShifts.reduce((s, x) => s + x.my_share - calcPartnerShare(x), 0);
     const partnerTotal = filteredShifts.reduce((s, x) => s + calcPartnerShare(x), 0);
-    const salaryTotal = filteredShifts.reduce((s, x) => s + x.salary, 0);
+    const salaryTotal = filteredShifts.reduce((s, x) => s + getShiftSalary(x), 0);
     return [
       { name: 'Моя доля', value: Math.max(0, myNet) },
       { name: 'Партнёрам', value: partnerTotal },
@@ -108,7 +121,7 @@ export default function Dashboard() {
       if (!map[w.id]) map[w.id] = { name: w.full_name, shifts: 0, hours: 0, salary: 0 };
       map[w.id].shifts++;
       map[w.id].hours += calcHours(s);
-      map[w.id].salary += s.salary;
+      map[w.id].salary += getShiftSalary(s);
     });
     return Object.values(map).sort((a, b) => b.salary - a.salary).slice(0, 5);
   }, [filteredShifts, calcHours, getWorker]);
@@ -163,9 +176,23 @@ export default function Dashboard() {
 
   return (
     <div className="p-6 space-y-6 overflow-auto">
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between flex-wrap gap-3">
         <h2 className="text-2xl font-bold text-gray-800">📊 Дашборд</h2>
-        <div className="flex gap-3 items-center">
+        <div className="flex gap-3 items-center flex-wrap">
+          <div className="flex border rounded-lg overflow-hidden">
+            <button
+              onClick={() => setDashboardMode('active')}
+              className={`px-3 py-1.5 text-sm transition ${dashboardMode === 'active' ? 'bg-blue-600 text-white' : 'bg-white text-gray-600 hover:bg-gray-50'}`}
+            >
+              Активные
+            </button>
+            <button
+              onClick={() => setDashboardMode('all')}
+              className={`px-3 py-1.5 text-sm transition ${dashboardMode === 'all' ? 'bg-blue-600 text-white' : 'bg-white text-gray-600 hover:bg-gray-50'}`}
+            >
+              Все данные
+            </button>
+          </div>
           <label className="text-sm text-gray-600">Период:</label>
           <input type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)}
             className="border rounded-lg px-3 py-1.5 text-sm" />
@@ -329,7 +356,7 @@ export default function Dashboard() {
                     <td className="py-1.5">{s.date}</td>
                     <td>{o?.name || '—'}</td>
                     <td>{w?.full_name || '?'}</td>
-                    <td className="font-medium">{formatMoney(s.salary)}</td>
+                    <td className="font-medium">{formatMoney(getShiftSalary(s))}</td>
                   </tr>
                 );
               })}

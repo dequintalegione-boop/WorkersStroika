@@ -63,7 +63,11 @@ export default function Shifts() {
     my_share: 0,
     partner_share_override: null,
     review: '',
-    comment: ''
+    comment: '',
+    payment_type: 'hourly',
+    volume_quantity: undefined,
+    volume_unit: '',
+    volume_rate: undefined
   });
 
   const resetForm = () => {
@@ -79,7 +83,11 @@ export default function Shifts() {
       my_share: 0,
       partner_share_override: null,
       review: '',
-      comment: ''
+      comment: '',
+      payment_type: 'hourly',
+      volume_quantity: undefined,
+      volume_unit: '',
+      volume_rate: undefined
     });
     setEditingId(null);
     setOverridePartner(false);
@@ -238,13 +246,19 @@ export default function Shifts() {
             </div>
             <div className="space-y-3">
               {!editingId && (
-                <label className="flex items-center gap-2 cursor-pointer p-2 bg-blue-50 rounded-lg">
-                  <input type="checkbox" checked={multiMode} onChange={(e) => {
+                <label className={`flex items-center gap-2 cursor-pointer p-2 rounded-lg ${form.payment_type === 'volume' ? 'bg-gray-100 opacity-50 cursor-not-allowed' : 'bg-blue-50'}`}>
+                  <input type="checkbox" checked={multiMode} disabled={form.payment_type === 'volume'} onChange={(e) => {
+                    if (form.payment_type === 'volume') return;
                     setMultiMode(e.target.checked);
                     if (!e.target.checked) { setSelectedWorkers([]); setIndividualSalaries(false); }
                   }} />
-                  <Users size={16} className="text-blue-600" />
-                  <span className="text-sm font-medium text-blue-700">Добавить сразу нескольких рабочих</span>
+                  <Users size={16} className={form.payment_type === 'volume' ? 'text-gray-400' : 'text-blue-600'} />
+                  <span className={`text-sm font-medium ${form.payment_type === 'volume' ? 'text-gray-500' : 'text-blue-700'}`}>
+                    Добавить сразу нескольких рабочих
+                  </span>
+                  {form.payment_type === 'volume' && (
+                    <span className="text-xs text-orange-600 ml-auto">Недоступно для объёмной оплаты</span>
+                  )}
                 </label>
               )}
 
@@ -312,7 +326,16 @@ export default function Shifts() {
 
               <div>
                 <label className="text-sm text-gray-600">Объект</label>
-                <select value={form.object_id} onChange={(e) => setForm({ ...form, object_id: e.target.value })}
+                <select value={form.object_id} onChange={(e) => {
+                  const objId = e.target.value;
+                  const obj = objId ? objects.find(o => o.id === objId) : null;
+                  setForm({ 
+                    ...form, 
+                    object_id: objId,
+                    payment_type: obj?.payment_type || 'hourly',
+                    volume_unit: obj?.volume_unit || form.volume_unit || ''
+                  });
+                }}
                   className="w-full border rounded-lg px-3 py-2">
                   <option value="">Без объекта</option>
                   {objects.filter(o => !o.archived).map((o) => <option key={o.id} value={o.id}>{o.name}</option>)}
@@ -324,11 +347,53 @@ export default function Shifts() {
                 )}
               </div>
 
-              {!individualSalaries && (
+              {!individualSalaries && form.payment_type === 'hourly' && (
                 <div>
                   <label className="text-sm text-gray-600">Зарплата (₽)</label>
                   <input type="number" value={form.salary || ''} onChange={(e) => setForm({ ...form, salary: +e.target.value })}
                     className="w-full border rounded-lg px-3 py-2" placeholder="0" />
+                </div>
+              )}
+
+              {!individualSalaries && form.payment_type === 'volume' && (
+                <div className="border rounded-lg p-3 bg-blue-50 space-y-2">
+                  <p className="text-sm font-medium text-blue-700">💰 Оплата за объём</p>
+                  <div className="grid grid-cols-3 gap-2">
+                    <div>
+                      <label className="text-xs text-gray-600">Объём</label>
+                      <input type="number" step="0.01" value={form.volume_quantity ?? ''}
+                        onChange={(e) => {
+                          const qty = e.target.value ? +e.target.value : undefined;
+                          const rate = form.volume_rate || 0;
+                          setForm({ ...form, volume_quantity: qty, salary: qty != null ? qty * rate : 0 });
+                        }}
+                        className="w-full border rounded-lg px-2 py-1.5 text-sm" placeholder="0" />
+                    </div>
+                    <div>
+                      <label className="text-xs text-gray-600">Ед. изм.</label>
+                      <input type="text" value={form.volume_unit || ''}
+                        onChange={(e) => setForm({ ...form, volume_unit: e.target.value })}
+                        className="w-full border rounded-lg px-2 py-1.5 text-sm" placeholder="м³" />
+                    </div>
+                    <div>
+                      <label className="text-xs text-gray-600">Цена за ед. (₽)</label>
+                      <input type="number" step="0.01" value={form.volume_rate ?? ''}
+                        onChange={(e) => {
+                          const rate = e.target.value ? +e.target.value : undefined;
+                          const qty = form.volume_quantity || 0;
+                          setForm({ ...form, volume_rate: rate, salary: rate != null ? qty * rate : 0 });
+                        }}
+                        className="w-full border rounded-lg px-2 py-1.5 text-sm" placeholder="0" />
+                    </div>
+                  </div>
+                  {(form.volume_quantity != null && form.volume_rate != null) && (
+                    <p className="text-sm font-bold text-green-700">
+                      Итого: {new Intl.NumberFormat('ru-RU').format(form.volume_quantity * form.volume_rate)} ₽
+                      <span className="font-normal text-gray-500 ml-2">
+                        ({form.volume_quantity} {form.volume_unit || 'ед.'} × {form.volume_rate} ₽)
+                      </span>
+                    </p>
+                  )}
                 </div>
               )}
 

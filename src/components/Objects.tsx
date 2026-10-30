@@ -1,27 +1,26 @@
 import { useState, useMemo } from 'react';
 import { useStore } from '../store';
 import { WorkObject, SortDirection } from '../types';
-import { Plus, Pencil, Trash2, X, Archive, ArchiveRestore } from 'lucide-react';
+import { Plus, Pencil, Trash2, X, Archive } from 'lucide-react';
 import DetailModal from './DetailModal';
 
 export default function Objects() {
-  const { objects, shifts, addObject, updateObject, deleteObject, archiveObject, unarchiveObject, calcHours, calcPartnerShare } = useStore();
+  const { objects, shifts, addObject, updateObject, deleteObject, archiveObject, calcHours, calcPartnerShare } = useStore();
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [sortField, setSortField] = useState<string>('number');
   const [sortDir, setSortDir] = useState<SortDirection>('asc');
   const [detailId, setDetailId] = useState<string | null>(null);
-  const [showArchived, setShowArchived] = useState(false);
-  const [form, setForm] = useState<Omit<WorkObject, 'id'>>({ number: objects.length + 1, name: '', direction: '', address: '' });
+  const [form, setForm] = useState<Omit<WorkObject, 'id'>>({ number: objects.length + 1, name: '', direction: '', address: '', payment_type: 'hourly', volume_unit: '' });
 
   const resetForm = () => {
-    setForm({ number: objects.length + 1, name: '', direction: '', address: '' });
+    setForm({ number: objects.length + 1, name: '', direction: '', address: '', payment_type: 'hourly', volume_unit: '' });
     setEditingId(null);
     setShowForm(false);
   };
 
   const handleEdit = (o: WorkObject) => {
-    setForm({ number: o.number, name: o.name, direction: o.direction, address: o.address });
+    setForm({ number: o.number, name: o.name, direction: o.direction, address: o.address, payment_type: o.payment_type || 'hourly', volume_unit: o.volume_unit || '' });
     setEditingId(o.id);
     setShowForm(true);
   };
@@ -58,10 +57,7 @@ export default function Objects() {
   };
 
   const stats = useMemo(() => {
-    let filteredObjects = objects.filter((o) => {
-      if (showArchived) return o.archived === true;
-      return !o.archived;
-    });
+    let filteredObjects = objects.filter((o) => !o.archived);
     
     let result = filteredObjects.map((o) => {
       const objShifts = shifts.filter((s) => s.object_id === o.id);
@@ -107,17 +103,10 @@ export default function Objects() {
     <div className="p-6 space-y-4">
       <div className="flex items-center justify-between">
         <h2 className="text-2xl font-bold text-gray-800">🏗️ Объекты</h2>
-        <div className="flex gap-2">
-          <button onClick={() => setShowArchived(!showArchived)}
-            className={`flex items-center gap-2 px-4 py-2 rounded-lg border transition ${showArchived ? 'bg-yellow-100 border-yellow-300 text-yellow-700' : 'bg-white hover:bg-gray-50'}`}>
-            <Archive size={16} />
-            <span className="text-sm">{showArchived ? 'Активные' : 'Архив'}</span>
-          </button>
-          <button onClick={() => { resetForm(); setShowForm(true); }}
-            className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition">
-            <Plus size={18} /> Добавить
-          </button>
-        </div>
+        <button onClick={() => { resetForm(); setShowForm(true); }}
+          className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition">
+          <Plus size={18} /> Добавить
+        </button>
       </div>
 
       {showForm && (
@@ -148,6 +137,21 @@ export default function Objects() {
                 <input type="text" value={form.address} onChange={(e) => setForm({ ...form, address: e.target.value })}
                   className="w-full border rounded-lg px-3 py-2" placeholder="ул. Строителей, 15" />
               </div>
+              <div>
+                <label className="text-sm text-gray-600">Тип оплаты</label>
+                <select value={form.payment_type || 'hourly'} onChange={(e) => setForm({ ...form, payment_type: e.target.value as 'hourly' | 'volume' })}
+                  className="w-full border rounded-lg px-3 py-2">
+                  <option value="hourly">За смену</option>
+                  <option value="volume">За объём работ</option>
+                </select>
+              </div>
+              {form.payment_type === 'volume' && (
+                <div>
+                  <label className="text-sm text-gray-600">Единица измерения</label>
+                  <input type="text" value={form.volume_unit || ''} onChange={(e) => setForm({ ...form, volume_unit: e.target.value })}
+                    className="w-full border rounded-lg px-3 py-2" placeholder="м³, м², тонна, рейс..." />
+                </div>
+              )}
             </div>
             <div className="flex gap-3 mt-5">
               <button onClick={handleSave} className="flex-1 bg-blue-600 text-white py-2 rounded-lg hover:bg-blue-700">
@@ -202,11 +206,7 @@ export default function Objects() {
                 <td className="px-4 py-2">
                   <div className="flex gap-1">
                     <button onClick={() => handleEdit(o)} className="p-1.5 hover:bg-blue-50 rounded text-blue-600"><Pencil size={16} /></button>
-                    {o.archived ? (
-                      <button onClick={() => unarchiveObject(o.id)} className="p-1.5 hover:bg-green-50 rounded text-green-600" title="Восстановить"><ArchiveRestore size={16} /></button>
-                    ) : (
-                      <button onClick={() => { if (confirm('Завершить объект? Статистика сохранится, но объект не будет отображаться в списках выбора.')) archiveObject(o.id); }} className="p-1.5 hover:bg-yellow-50 rounded text-yellow-600" title="Завершить"><Archive size={16} /></button>
-                    )}
+                    <button onClick={() => { if (confirm('Завершить объект? Статистика сохранится, но объект не будет отображаться в списках выбора.')) archiveObject(o.id); }} className="p-1.5 hover:bg-yellow-50 rounded text-yellow-600" title="Завершить"><Archive size={16} /></button>
                     <button onClick={() => handleDelete(o.id)} className="p-1.5 hover:bg-red-50 rounded text-red-600"><Trash2 size={16} /></button>
                   </div>
                 </td>
