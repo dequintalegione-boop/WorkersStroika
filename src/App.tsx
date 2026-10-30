@@ -12,6 +12,7 @@ import Calendar from './components/Calendar';
 import Planning from './components/Planning';
 import Archive from './components/Archive';
 import Settings from './components/Settings';
+import Payroll from './components/Payroll';
 import { Menu, X, Download, Sun, Moon } from 'lucide-react';
 import { useInstallPrompt } from './hooks/useInstallPrompt';
 import { useStore } from './store';
@@ -45,6 +46,7 @@ export default function App() {
       case 'planning': return <Planning />;
       case 'archive': return <Archive />;
       case 'settings': return <Settings />;
+      case 'payroll': return <Payroll />;
       default: return <Dashboard />;
     }
   };
@@ -61,6 +63,7 @@ export default function App() {
     planning: '📋 Планирование',
     archive: '📦 Архив',
     settings: '⚙️ Настройки',
+    payroll: '💵 Зарплаты и выплаты',
   };
 
   return (

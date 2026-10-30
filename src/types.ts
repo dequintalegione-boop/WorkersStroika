@@ -62,12 +62,37 @@ export interface PlanningEntry {
   confirmed: boolean;
 }
 
-export type Page = 'dashboard' | 'workers' | 'partners' | 'objects' | 'shifts' | 'statistics' | 'import' | 'calendar' | 'planning' | 'archive' | 'settings';
+export interface PayrollAccrual {
+  id: string;
+  shift_id: string;
+  worker_id: string;
+  object_id: string;
+  date: string;
+  amount: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export type WorkerPaymentKind = 'salary' | 'advance';
+export type WorkerPaymentMethod = 'cash' | 'bank' | 'other';
+
+export interface WorkerPayment {
+  id: string;
+  worker_id: string;
+  date: string;
+  amount: number;
+  kind: WorkerPaymentKind;
+  method: WorkerPaymentMethod;
+  comment: string;
+  created_at: string;
+}
+
+export type Page = 'dashboard' | 'workers' | 'partners' | 'objects' | 'shifts' | 'statistics' | 'import' | 'calendar' | 'planning' | 'archive' | 'settings' | 'payroll';
 
 export type SortDirection = 'asc' | 'desc' | null;
 
 export type Theme = 'light' | 'dark' | 'modern-dark';
 
-export type ModuleKey = 'dashboard' | 'calendar' | 'planning' | 'workers' | 'partners' | 'objects' | 'shifts' | 'statistics' | 'archive' | 'import';
+export type ModuleKey = 'dashboard' | 'calendar' | 'planning' | 'workers' | 'partners' | 'objects' | 'shifts' | 'statistics' | 'archive' | 'import' | 'payroll';
 
 export type DashboardMode = 'active' | 'all';

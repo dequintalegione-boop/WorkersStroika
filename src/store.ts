@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { v4 as uuidv4 } from 'uuid';
-import { Worker, Partner, WorkObject, Shift, PlanningEntry, Theme, PaymentType, ModuleKey } from './types';
+import { Worker, Partner, WorkObject, Shift, PlanningEntry, PayrollAccrual, WorkerPayment, Theme, PaymentType, ModuleKey } from './types';
 
 // Единая функция расчёта зарплаты за смену
 export function calcShiftSalary(shift: Shift | Omit<Shift, 'id'>): number {
@@ -54,7 +54,7 @@ export interface IntegrityIssue {
   message: string;
 }
 
-export function checkIntegrity(state: { workers: Worker[]; partners: Partner[]; objects: WorkObject[]; shifts: Shift[]; planning: PlanningEntry[] }): IntegrityIssue[] {
+export function checkIntegrity(state: { workers: Worker[]; partners: Partner[]; objects: WorkObject[]; shifts: Shift[]; planning: PlanningEntry[]; payrollAccruals?: PayrollAccrual[]; workerPayments?: WorkerPayment[] }): IntegrityIssue[] {
   const issues: IntegrityIssue[] = [];
   const workerIds = new Set(state.workers.map(w => w.id));
   const partnerIds = new Set(state.partners.map(p => p.id));
@@ -104,6 +104,26 @@ export function checkIntegrity(state: { workers: Worker[]; partners: Partner[]; 
     }
   });
 
+  const payrollAccruals = state.payrollAccruals || [];
+  const workerPayments = state.workerPayments || [];
+  if (new Set(payrollAccruals.map(a => a.id)).size !== payrollAccruals.length) {
+    issues.push({ level: 'critical', entity: 'payrollAccruals', id: '-', message: 'Дублирующиеся ID начислений зарплаты' });
+  }
+  if (new Set(payrollAccruals.map(a => a.shift_id)).size !== payrollAccruals.length) {
+    issues.push({ level: 'critical', entity: 'payrollAccruals', id: '-', message: 'Для одной смены создано несколько начислений' });
+  }
+  if (new Set(workerPayments.map(p => p.id)).size !== workerPayments.length) {
+    issues.push({ level: 'critical', entity: 'workerPayments', id: '-', message: 'Дублирующиеся ID выплат' });
+  }
+  payrollAccruals.forEach(a => {
+    if (!workerIds.has(a.worker_id)) issues.push({ level: 'error', entity: 'payrollAccrual', id: a.id, message: 'Начисление связано с несуществующим рабочим' });
+    if (!Number.isFinite(a.amount) || a.amount < 0) issues.push({ level: 'error', entity: 'payrollAccrual', id: a.id, message: 'Некорректная сумма начисления' });
+  });
+  workerPayments.forEach(p => {
+    if (!workerIds.has(p.worker_id)) issues.push({ level: 'error', entity: 'workerPayment', id: p.id, message: 'Выплата связана с несуществующим рабочим' });
+    if (!Number.isFinite(p.amount) || p.amount <= 0) issues.push({ level: 'error', entity: 'workerPayment', id: p.id, message: 'Некорректная сумма выплаты' });
+  });
+
   // Рабочие с несуществующим партнёром
   state.workers.forEach(w => {
     const legacyName = (w as any).legacy_inviter_name || (w as any).inviter || '';
@@ -119,7 +139,7 @@ export function checkIntegrity(state: { workers: Worker[]; partners: Partner[]; 
 
 const DEFAULT_MODULES: Record<ModuleKey, boolean> = {
   dashboard: true, calendar: true, planning: true, workers: true, partners: true,
-  objects: true, shifts: true, statistics: true, archive: true, import: true
+  objects: true, shifts: true, statistics: true, archive: true, import: true, payroll: true
 };
 
 interface AppState {
@@ -128,10 +148,15 @@ interface AppState {
   objects: WorkObject[];
   shifts: Shift[];
   planning: PlanningEntry[];
+  payrollAccruals: PayrollAccrual[];
+  workerPayments: WorkerPayment[];
   theme: Theme;
   setTheme: (theme: Theme) => void;
   appModules: Record<ModuleKey, boolean>;
   setModuleEnabled: (module: ModuleKey, enabled: boolean) => void;
+  syncPayrollAccruals: (fromDate: string) => { created: number; updated: number; skipped: number };
+  addWorkerPayment: (payment: Omit<WorkerPayment, 'id' | 'created_at'>) => { success: boolean; error?: string };
+  deleteWorkerPayment: (id: string) => void;
 
   // Worker CRUD
   addWorker: (w: Omit<Worker, 'id'>) => void;
@@ -152,7 +177,7 @@ interface AppState {
   addShift: (s: Omit<Shift, 'id'>) => { success: boolean; error?: string };
   addShifts: (shifts: Omit<Shift, 'id'>[]) => { success: boolean; error?: string };
   updateShift: (id: string, s: UpdateData<Shift>) => { success: boolean; error?: string };
-  deleteShift: (id: string) => void;
+  deleteShift: (id: string) => { success: boolean; error?: string };
 
   // Planning CRUD
   addPlanning: (p: Omit<PlanningEntry, 'id'>) => void;
@@ -200,6 +225,8 @@ export const useStore = create<AppState>()(
       objects: [],
       shifts: [],
       planning: [],
+      payrollAccruals: [],
+      workerPayments: [],
       theme: 'light' as Theme,
       setTheme: (theme) => set({ theme }),
       appModules: { ...DEFAULT_MODULES },
@@ -216,8 +243,10 @@ export const useStore = create<AppState>()(
         const state = get();
         const shiftCount = state.shifts.filter(s => s.worker_id === id).length;
         const planningCount = state.planning.filter(p => p.worker_id === id).length;
-        if (shiftCount > 0 || planningCount > 0) {
-          return { success: false, error: `Нельзя удалить: ${shiftCount} смен, ${planningCount} записей планирования. Используйте архивирование.` };
+        const accrualCount = state.payrollAccruals.filter(a => a.worker_id === id).length;
+        const paymentCount = state.workerPayments.filter(p => p.worker_id === id).length;
+        if (shiftCount > 0 || planningCount > 0 || accrualCount > 0 || paymentCount > 0) {
+          return { success: false, error: `Нельзя удалить: ${shiftCount} смен, ${planningCount} записей планирования, ${accrualCount} начислений и ${paymentCount} выплат. Используйте архивирование.` };
         }
         set((s) => ({ workers: s.workers.filter(x => x.id !== id) }));
         return { success: true };
@@ -296,9 +325,13 @@ export const useStore = create<AppState>()(
         set(state => ({ shifts: state.shifts.map(x => x.id === id ? merged : x) }));
         return { success: true };
       },
-      deleteShift: (id) => set((state) => ({
-        shifts: state.shifts.filter((x) => x.id !== id)
-      })),
+      deleteShift: (id) => {
+        if (get().payrollAccruals.some(a => a.shift_id === id)) {
+          return { success: false, error: 'По этой смене уже создано начисление. Удаление запрещено, чтобы сохранить историю зарплаты. При необходимости отредактируйте смену и пересинхронизируйте начисления.' };
+        }
+        set((state) => ({ shifts: state.shifts.filter((x) => x.id !== id) }));
+        return { success: true };
+      },
 
       addPlanning: (p) => set((state) => ({
         planning: [...state.planning, { ...p, id: uuidv4() }]
@@ -328,6 +361,51 @@ export const useStore = create<AppState>()(
       unarchivePartner: (id) => set((state) => ({
         partners: state.partners.map((p) => p.id === id ? { ...p, archived: false, archived_at: undefined } : p)
       })),
+
+      syncPayrollAccruals: (fromDate) => {
+        const state = get();
+        const existingByShift = new Map(state.payrollAccruals.map(a => [a.shift_id, a]));
+        const next = [...state.payrollAccruals];
+        const now = new Date().toISOString();
+        let created = 0;
+        let updated = 0;
+        let skipped = 0;
+        state.shifts.filter(s => !fromDate || s.date >= fromDate).forEach(shift => {
+          const amount = calcShiftSalary(shift);
+          if (!Number.isFinite(amount) || amount <= 0) { skipped += 1; return; }
+          const current = existingByShift.get(shift.id);
+          if (!current) {
+            const accrual: PayrollAccrual = {
+              id: uuidv4(), shift_id: shift.id, worker_id: shift.worker_id,
+              object_id: shift.object_id || '', date: shift.date, amount,
+              created_at: now, updated_at: now
+            };
+            next.push(accrual);
+            created += 1;
+            return;
+          }
+          if (current.amount !== amount || current.worker_id !== shift.worker_id || current.object_id !== (shift.object_id || '') || current.date !== shift.date) {
+            const refreshed = { ...current, amount, worker_id: shift.worker_id, object_id: shift.object_id || '', date: shift.date, updated_at: now };
+            const index = next.findIndex(a => a.id === current.id);
+            if (index >= 0) next[index] = refreshed;
+            updated += 1;
+          }
+        });
+        set({ payrollAccruals: next });
+        return { created, updated, skipped };
+      },
+      addWorkerPayment: (payment) => {
+        const state = get();
+        if (!state.workers.some(w => w.id === payment.worker_id)) return { success: false, error: 'Выбранный рабочий не найден.' };
+        if (!payment.date) return { success: false, error: 'Укажите дату выплаты.' };
+        if (!Number.isFinite(payment.amount) || payment.amount <= 0) return { success: false, error: 'Сумма должна быть больше нуля.' };
+        if (!['salary', 'advance'].includes(payment.kind)) return { success: false, error: 'Неизвестный тип выплаты.' };
+        if (!['cash', 'bank', 'other'].includes(payment.method)) return { success: false, error: 'Неизвестный способ выплаты.' };
+        const item: WorkerPayment = { ...payment, amount: Math.round(payment.amount * 100) / 100, id: uuidv4(), created_at: new Date().toISOString() };
+        set(current => ({ workerPayments: [...current.workerPayments, item] }));
+        return { success: true };
+      },
+      deleteWorkerPayment: (id) => set(state => ({ workerPayments: state.workerPayments.filter(p => p.id !== id) })),
 
       getWorker: (id) => get().workers.find((w) => w.id === id),
       getObject: (id) => get().objects.find((o) => o.id === id),
@@ -374,7 +452,9 @@ export const useStore = create<AppState>()(
           partners: state.partners,
           objects: state.objects,
           shifts: state.shifts,
-          planning: state.planning
+          planning: state.planning,
+          payrollAccruals: state.payrollAccruals,
+          workerPayments: state.workerPayments
         });
       },
 
@@ -404,6 +484,11 @@ export const useStore = create<AppState>()(
           const normalizedObjects = data.objects.map((o: any) => normalizeId(o, 'object'));
           const normalizedShifts = data.shifts.map((s: any) => normalizeId(s, 'shift'));
           const normalizedPlanning = (data.planning || []).map((p: any) => normalizeId(p, 'planning'));
+          const normalizedPayrollAccruals = (data.payrollAccruals || []).map((a: any) => normalizeId(a, 'payrollAccrual'));
+          const normalizedWorkerPayments = (data.workerPayments || []).map((p: any) => normalizeId(p, 'workerPayment'));
+          if ((!Array.isArray(data.payrollAccruals) || !Array.isArray(data.workerPayments)) && (get().payrollAccruals.length || get().workerPayments.length)) {
+            warnings.push('Файл резервной копии не содержит начислений или выплат. При импорте эти финансовые записи будут заменены пустыми списками.');
+          }
 
           // Проверка уникальности ID
           const checkUnique = (items: any[], name: string): string | null => {
@@ -416,7 +501,8 @@ export const useStore = create<AppState>()(
 
           const dupError = checkUnique(normalizedWorkers, 'workers') || checkUnique(normalizedPartners, 'partners') ||
                            checkUnique(normalizedObjects, 'objects') || checkUnique(normalizedShifts, 'shifts') ||
-                           checkUnique(normalizedPlanning, 'planning');
+                           checkUnique(normalizedPlanning, 'planning') || checkUnique(normalizedPayrollAccruals, 'payrollAccruals') ||
+                           checkUnique(normalizedWorkerPayments, 'workerPayments');
           if (dupError) {
             return { success: false, error: dupError };
           }
@@ -441,6 +527,18 @@ export const useStore = create<AppState>()(
             }
           });
 
+          const accrualShiftIds = normalizedPayrollAccruals.map((a: any) => a.shift_id);
+          if (new Set(accrualShiftIds).size !== accrualShiftIds.length) linkErrors.push('В файле есть несколько начислений для одной смены');
+          normalizedPayrollAccruals.forEach((a: any, i: number) => {
+            if (!a.worker_id || !workerIds.has(a.worker_id) || typeof a.shift_id !== 'string' || typeof a.date !== 'string' || typeof a.amount !== 'number' || !Number.isFinite(a.amount) || a.amount < 0) {
+              linkErrors.push(`Начисление №${i + 1}: некорректная сумма или связь с рабочим/сменой`);
+            }
+          });
+          normalizedWorkerPayments.forEach((p: any, i: number) => {
+            if (!p.worker_id || !workerIds.has(p.worker_id) || typeof p.date !== 'string' || typeof p.amount !== 'number' || !Number.isFinite(p.amount) || p.amount <= 0 || !['salary', 'advance'].includes(p.kind) || !['cash', 'bank', 'other'].includes(p.method)) {
+              linkErrors.push(`Выплата №${i + 1}: некорректная сумма, тип или связь с рабочим`);
+            }
+          });
           normalizedPlanning.forEach((p: any) => {
             if (!p.worker_id || !workerIds.has(p.worker_id)) {
               linkErrors.push('Запись планирования ссылается на несуществующего рабочего');
@@ -509,6 +607,12 @@ export const useStore = create<AppState>()(
           const importedPlanning = normalizedPlanning.map((p: any) => ({
             ...p, object_id: p.object_id ?? '', note: p.note ?? '', confirmed: p.confirmed ?? false
           }));
+          const importedPayrollAccruals = normalizedPayrollAccruals.map((a: any) => ({
+            ...a, object_id: a.object_id ?? '', created_at: a.created_at || new Date().toISOString(), updated_at: a.updated_at || a.created_at || new Date().toISOString()
+          }));
+          const importedWorkerPayments = normalizedWorkerPayments.map((p: any) => ({
+            ...p, comment: p.comment ?? '', created_at: p.created_at || new Date().toISOString()
+          }));
 
           const fieldErrors: string[] = [];
           const isText = (value: any) => typeof value === 'string';
@@ -558,7 +662,9 @@ export const useStore = create<AppState>()(
             partners: importedPartners,
             objects: importedObjects,
             shifts: importedShifts,
-            planning: importedPlanning
+            planning: importedPlanning,
+            payrollAccruals: importedPayrollAccruals,
+            workerPayments: importedWorkerPayments
           });
 
           return { success: true, warnings: warnings.length > 0 ? warnings : undefined };
@@ -573,14 +679,22 @@ export const useStore = create<AppState>()(
           partners: state.partners,
           objects: state.objects,
           shifts: state.shifts,
-          planning: state.planning
+          planning: state.planning,
+          payrollAccruals: state.payrollAccruals,
+          workerPayments: state.workerPayments
         }, null, 2);
       }
     }),
     { 
       name: 'brigade-tracker-storage',
-      version: 8,
+      version: 9,
       migrate: (persistedState: any, version: number) => {
+        // v8 → v9: add payroll ledger while preserving existing workers, shifts and settings.
+        if (version < 9) {
+          persistedState.payrollAccruals = persistedState.payrollAccruals || [];
+          persistedState.workerPayments = persistedState.workerPayments || [];
+          persistedState.appModules = { ...DEFAULT_MODULES, ...(persistedState.appModules || {}) };
+        }
         // v7 → v8: preferences for visible modules. Existing data is preserved.
         if (version < 8) persistedState.appModules = { ...DEFAULT_MODULES, ...(persistedState.appModules || {}) };
         // v1 → v2: add planning

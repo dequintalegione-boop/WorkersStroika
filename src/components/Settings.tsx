@@ -12,7 +12,8 @@ const moduleItems: { key: ModuleKey; title: string; description: string }[] = [
   { key:'shifts', title:'Смены', description:'Рабочее время и начисление зарплаты' },
   { key:'statistics', title:'Статистика', description:'Отчёты и показатели по сменам' },
   { key:'archive', title:'Архив', description:'Архивные сотрудники, партнёры и объекты' },
-  { key:'import', title:'Данные и резервные копии', description:'Импорт, экспорт и проверка целостности' }
+  { key:'import', title:'Данные и резервные копии', description:'Импорт, экспорт и проверка целостности' },
+  { key:'payroll', title:'Зарплаты и выплаты', description:'Начисления по сменам, авансы, выплаты и баланс сотрудников' }
 ];
 const themes: { key:Theme; title:string; description:string; preview:string }[] = [
   { key:'light', title:'Светлая', description:'Существующее светлое оформление', preview:'bg-slate-100' },

@@ -154,7 +154,9 @@ export default function Shifts() {
   };
 
   const handleDelete = (id: string) => {
-    if (confirm('Удалить смену?')) deleteShift(id);
+    if (!confirm('Удалить смену?')) return;
+    const result = deleteShift(id);
+    if (!result.success) alert(result.error);
   };
 
   const toggleSort = (field: string) => {
