@@ -342,3 +342,131 @@
   .modern-dark .app-sidebar { width:168px !important; }
   .modern-dark .page-wrap { padding:20px 15px !important; }
 }
+
+/* X-ANALYTICS: force the full reference layout from the root theme state.
+   These selectors intentionally target html[data-theme] so the composition
+   cannot silently fall back to the old theme when an earlier CSS rule wins. */
+html[data-theme="modern-dark"] body,
+html.modern-dark body { background:#211f30 !important; color:#eeeaf8 !important; }
+html[data-theme="modern-dark"] .app-shell,
+html.modern-dark .app-shell {
+  display:flex !important; flex-direction:row !important;
+  background:#211f30 !important; min-height:100vh;
+}
+html[data-theme="modern-dark"] .app-sidebar-wrap,
+html.modern-dark .app-sidebar-wrap {
+  width:168px !important; min-width:168px !important; flex:0 0 168px !important;
+  position:relative !important; inset:auto !important; transform:none !important;
+}
+html[data-theme="modern-dark"] .app-sidebar,
+html.modern-dark .app-sidebar {
+  width:168px !important; min-width:168px !important; height:100vh !important; min-height:100vh !important;
+  background:#302c40 !important; border:0 !important; box-shadow:none !important;
+}
+html[data-theme="modern-dark"] .sidebar-brand,
+html.modern-dark .sidebar-brand {
+  height:154px !important; flex:0 0 154px !important; padding:18px 10px !important;
+  display:flex !important; align-items:center !important; justify-content:center !important;
+  overflow:hidden !important; position:relative !important; border:0 !important;
+  border-radius:0 0 30px 0 !important;
+  background:radial-gradient(circle at 16% 18%,rgba(255,255,255,.22),transparent 24%),
+    radial-gradient(circle at 84% 8%,rgba(255,139,214,.45),transparent 35%),
+    linear-gradient(145deg,#7039e9 0%,#a04de5 44%,#e16bc9 100%) !important;
+}
+html[data-theme="modern-dark"] .sidebar-brand:after,
+html.modern-dark .sidebar-brand:after {
+  content:""; position:absolute; width:190px; height:58px; left:-16px; bottom:-26px;
+  border-radius:50%; background:rgba(36,25,82,.34); box-shadow:0 -10px 0 rgba(255,255,255,.08);
+}
+html[data-theme="modern-dark"] .sidebar-brand-inner,
+html.modern-dark .sidebar-brand-inner { position:relative; z-index:1; display:flex; flex-direction:column; align-items:center; gap:6px; }
+html[data-theme="modern-dark"] .sidebar-brand-symbol,
+html.modern-dark .sidebar-brand-symbol {
+  width:52px; height:52px; border-radius:18px; display:flex; align-items:center; justify-content:center;
+  color:#fff; background:rgba(255,255,255,.13); border:1px solid rgba(255,255,255,.22);
+  box-shadow:0 8px 26px rgba(47,18,105,.20);
+}
+html[data-theme="modern-dark"] .sidebar-brand-title,
+html.modern-dark .sidebar-brand-title { color:#fff !important; font-size:15px; font-weight:700; }
+html[data-theme="modern-dark"] .sidebar-brand-title span,
+html.modern-dark .sidebar-brand-title span { color:#f9d7ff; font-weight:400; }
+html[data-theme="modern-dark"] .sidebar-brand-caption,
+html.modern-dark .sidebar-brand-caption { color:rgba(255,255,255,.66); font-size:7px; letter-spacing:.16em; }
+html[data-theme="modern-dark"] .app-sidebar nav,
+html.modern-dark .app-sidebar nav { padding:22px 0 12px !important; }
+html[data-theme="modern-dark"] .sidebar-link,
+html.modern-dark .sidebar-link {
+  min-height:42px !important; padding:10px 13px !important; margin:2px 0 !important;
+  border-radius:0 12px 12px 0 !important; gap:11px !important;
+  color:#918da3 !important; font-size:11px !important; border-left:3px solid transparent !important;
+}
+html[data-theme="modern-dark"] .sidebar-link.bg-blue-600,
+html.modern-dark .sidebar-link.bg-blue-600 {
+  color:#fff !important; background:rgba(123,87,221,.18) !important;
+  border-left-color:#c1a8ff !important; box-shadow:none !important;
+}
+html[data-theme="modern-dark"] .app-topbar,
+html.modern-dark .app-topbar {
+  height:50px !important; min-height:50px !important; padding:0 24px !important;
+  background:#302c40 !important; border:0 !important; box-shadow:none !important;
+}
+html[data-theme="modern-dark"] .app-main,
+html.modern-dark .app-main {
+  background:radial-gradient(ellipse at 76% 0%,rgba(122,83,204,.09),transparent 34%),#211f30 !important;
+  color:#eeeaf8 !important;
+}
+html[data-theme="modern-dark"] .app-main .bg-white,
+html.modern-dark .app-main .bg-white {
+  background:#302c42 !important; border-color:rgba(255,255,255,.055) !important;
+  box-shadow:0 8px 22px rgba(12,9,25,.15) !important;
+}
+html[data-theme="modern-dark"] .app-main .text-gray-800,
+html[data-theme="modern-dark"] .app-main .text-gray-700,
+html.modern-dark .app-main .text-gray-800,
+html.modern-dark .app-main .text-gray-700 { color:#f0edf8 !important; }
+html[data-theme="modern-dark"] .app-main .text-gray-600,
+html[data-theme="modern-dark"] .app-main .text-gray-500,
+html.modern-dark .app-main .text-gray-600,
+html.modern-dark .app-main .text-gray-500 { color:#aaa5b8 !important; }
+html[data-theme="modern-dark"] .app-main input,
+html[data-theme="modern-dark"] .app-main select,
+html[data-theme="modern-dark"] .app-main textarea,
+html.modern-dark .app-main input,
+html.modern-dark .app-main select,
+html.modern-dark .app-main textarea {
+  background:#272337 !important; border-color:rgba(255,255,255,.10) !important; color:#f4f0ff !important;
+}
+html[data-theme="modern-dark"] .app-main .bg-gray-50,
+html.modern-dark .app-main .bg-gray-50 { background:#282438 !important; }
+html[data-theme="modern-dark"] .app-main .bg-gray-100,
+html.modern-dark .app-main .bg-gray-100 { background:#242131 !important; }
+html[data-theme="modern-dark"] .page-wrap,
+html.modern-dark .page-wrap { max-width:1440px !important; padding:28px 30px !important; }
+html[data-theme="modern-dark"] .metric-card,
+html.modern-dark .metric-card { background:linear-gradient(145deg,#302c42,#2b273a) !important; border-radius:3px !important; }
+html[data-theme="modern-dark"] .finance-tabs,
+html.modern-dark .finance-tabs { background:#242131 !important; }
+html[data-theme="modern-dark"] .finance-tabs button.active,
+html.modern-dark .finance-tabs button.active { background:linear-gradient(135deg,#764af1,#9e56e9) !important; color:#fff !important; }
+@media(max-width:1023px) {
+  html[data-theme="modern-dark"] .app-sidebar-wrap,
+  html.modern-dark .app-sidebar-wrap { position:fixed !important; inset:0 auto 0 0 !important; z-index:50 !important; transform:translateX(-100%); }
+  html[data-theme="modern-dark"] .app-sidebar-wrap:has(.app-sidebar-premium),
+  html.modern-dark .app-sidebar-wrap:has(.app-sidebar-premium) { width:168px !important; }
+  html[data-theme="modern-dark"] .app-shell:has(.app-sidebar-wrap .translate-x-0) .app-sidebar-wrap,
+  html.modern-dark .app-shell:has(.app-sidebar-wrap .translate-x-0) .app-sidebar-wrap { transform:translateX(0); }
+  html[data-theme="modern-dark"] .page-wrap,
+  html.modern-dark .page-wrap { padding:20px 15px !important; }
+}
+/* The application shell signals the selected design independently of color classes. */
+.theme-x-analytics { --app-layout: x-analytics; }
+
+.theme-preview-xanalytics {
+  background:linear-gradient(145deg,#302c40 0 25%,#211f30 25% 100%) !important;
+  position:relative; overflow:hidden; border:1px solid rgba(255,255,255,.13);
+}
+.theme-preview-xanalytics:before {
+  content:""; position:absolute; top:0; left:0; bottom:0; width:25%;
+  background:linear-gradient(160deg,#7a3ce8,#df68cb);
+}
+.theme-preview-xanalytics > div { position:relative; z-index:1; }

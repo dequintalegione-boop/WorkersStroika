@@ -27,8 +27,18 @@ export default function App() {
   const isLocalVersion = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
 
   useEffect(() => {
-    document.documentElement.classList.toggle('dark', theme === 'dark' || theme === 'modern-dark');
-    document.documentElement.classList.toggle('modern-dark', theme === 'modern-dark');
+    const root = document.documentElement;
+    root.classList.remove('light', 'dark', 'modern-dark');
+    if (theme === 'light') {
+      root.classList.add('light');
+    } else if (theme === 'dark') {
+      root.classList.add('dark');
+    } else {
+      root.classList.add('dark', 'modern-dark');
+    }
+    root.dataset.theme = theme;
+    document.body.dataset.theme = theme;
+    document.body.classList.toggle('theme-x-analytics', theme === 'modern-dark');
   }, [theme]);
 
   const toggleTheme = () => {
@@ -73,7 +83,7 @@ export default function App() {
   };
 
   return (
-    <div className={`app-shell flex h-screen bg-gray-100 ${theme === "modern-dark" ? "premium-layout" : ""}`}>
+    <div className={`app-shell flex h-screen bg-gray-100 ${theme === "modern-dark" ? "premium-layout theme-x-analytics" : ""}`}>
       {sidebarOpen && (
         <div className="fixed inset-0 bg-black/50 z-40 lg:hidden" onClick={() => setSidebarOpen(false)} />
       )}
@@ -98,7 +108,7 @@ export default function App() {
             <button
               onClick={toggleTheme}
               className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition"
-              title={theme === 'light' ? 'Современная тёмная тема' : theme === 'modern-dark' ? 'Классическая тёмная тема' : 'Светлая тема'}
+              title={theme === 'light' ? 'X-Analytics' : theme === 'modern-dark' ? 'Классическая тёмная тема' : 'Светлая тема'}
             >
               {theme === 'light' ? <Moon size={20} className="text-gray-600" /> : <Sun size={20} className="text-yellow-400" />}
             </button>

@@ -5,21 +5,36 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>БригадаУчёт — Учёт рабочих бригад и подработок</title>
     <meta name="description" content="Учёт рабочих бригад и подработок: смены, заработки, партнёры, объекты, дашборд" />
-    <meta name="theme-color" content="#1e40af" />
+    <meta name="theme-color" content="#302c40" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <meta name="apple-mobile-web-app-title" content="БригадаУчёт" />
     <link rel="manifest" href="/manifest.json" />
     <link rel="icon" type="image/svg+xml" href="/icon.svg" />
     <script>
-      // Prevent theme flash
-      (function() {
+      // Apply the saved theme before React paints, including the X-Analytics layout.
+      (function () {
+        function applyTheme(theme) {
+          if (!["light", "dark", "modern-dark"].includes(theme)) theme = "light";
+          var root = document.documentElement;
+          root.classList.remove("light", "dark", "modern-dark");
+          if (theme === "light") root.classList.add("light");
+          if (theme === "dark") root.classList.add("dark");
+          if (theme === "modern-dark") root.classList.add("dark", "modern-dark");
+          root.setAttribute("data-theme", theme);
+          return theme;
+        }
+        var theme = "light";
         try {
-          const stored = JSON.parse(localStorage.getItem('brigade-tracker-storage') || '{}');
-          if (stored.state && stored.state.theme === 'dark') {
-            document.documentElement.classList.add('dark');
-          }
-        } catch(e) {}
+          var saved = JSON.parse(localStorage.getItem("brigade-tracker-storage") || "{}");
+          theme = saved && saved.state && saved.state.theme ? saved.state.theme : "light";
+        } catch (error) {}
+        applyTheme(theme);
+        if (window.self !== window.top) {
+          window.addEventListener("message", function (event) {
+            if (event.data && typeof event.data.theme === "string") applyTheme(event.data.theme);
+          });
+        }
       })();
     </script>
     <link
@@ -46,33 +61,6 @@
         color: #ffffff;
       }
     </style>
-    <script>
-      // 在 React 加载前立即设置主题，避免闪烁
-      (function () {
-        const isInIframe = window.self !== window.top;
-
-        function applyThemeToDOM(theme) {
-          document.documentElement.classList.remove("light", "dark");
-          document.documentElement.classList.add(theme);
-          document.documentElement.setAttribute("data-theme", theme);
-        }
-
-        if (isInIframe) {
-          // 监听父窗口主动推送的主题消息
-          window.addEventListener("message", function (event) {
-            if (event.data && typeof event.data.theme === "string") {
-              const theme = event.data.theme;
-              if (theme === "light" || theme === "dark") {
-                applyThemeToDOM(theme);
-              }
-            }
-          });
-        } else {
-          // 非 iframe 环境，使用默认 light 主题
-          applyThemeToDOM("light");
-        }
-      })();
-    </script>
       <script>
       (function () {
         if (window.self === window.top) return;

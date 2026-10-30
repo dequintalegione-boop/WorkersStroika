@@ -20,7 +20,7 @@ const moduleItems: { key: ModuleKey; title: string; description: string }[] = [
 const themes: { key:Theme; title:string; description:string; preview:string }[] = [
   { key:'light', title:'Светлая', description:'Существующее светлое оформление', preview:'bg-slate-100' },
   { key:'dark', title:'Классическая тёмная', description:'Существующая тёмная тема', preview:'bg-indigo-950' },
-  { key:'modern-dark', title:'Midnight Glass', description:'Премиальный тёмный стиль: стеклянные панели, градиенты и световые акценты', preview:'bg-slate-950' }
+  { key:'modern-dark', title:'X-Analytics', description:'Полностью другая компоновка: фиолетовая бренд-панель, компактная навигация и аналитические карточки', preview:'bg-slate-950' }
 ];
 export default function Settings() {
   const { theme,setTheme,appModules,setModuleEnabled } = useStore();
@@ -29,7 +29,7 @@ export default function Settings() {
     <section className="bg-white rounded-xl border shadow-sm p-5 md:p-6 space-y-4">
       <div className="flex items-center gap-2"><Palette className="text-blue-500" size={21}/><h3 className="text-lg font-semibold text-gray-800">Оформление</h3></div>
       <div className="grid grid-cols-1 md:grid-cols-3 gap-3">{themes.map(item=><button key={item.key} onClick={()=>setTheme(item.key)} className={`text-left rounded-xl border-2 p-3 transition ${theme===item.key?'border-blue-500 ring-2 ring-blue-100':'border-gray-200 hover:border-gray-400'}`}>
-        <div className={`h-20 rounded-lg ${item.preview} p-3 flex gap-2 ${item.key === 'modern-dark' ? 'theme-preview-midnight' : ''}`}><div className={`w-1/4 rounded ${item.key==='light'?'bg-slate-300':'bg-slate-800'}`}/><div className="flex-1 space-y-2"><div className={`h-3 rounded ${item.key==='light'?'bg-white':'bg-slate-700'}`}/><div className={`h-7 rounded ${item.key==='light'?'bg-white':'bg-slate-800'}`}/></div></div>
+        <div className={`h-20 rounded-lg ${item.preview} p-3 flex gap-2 ${item.key === 'modern-dark' ? 'theme-preview-xanalytics' : ''}`}><div className={`w-1/4 rounded ${item.key==='light'?'bg-slate-300':'bg-slate-800'}`}/><div className="flex-1 space-y-2"><div className={`h-3 rounded ${item.key==='light'?'bg-white':'bg-slate-700'}`}/><div className="grid grid-cols-2 gap-1"><div className="h-7 rounded bg-slate-700"/><div className="h-7 rounded bg-slate-700"/></div></div></div>
         <div className="flex items-center justify-between mt-3 gap-2"><span className="font-semibold text-gray-800">{item.title}</span>{theme===item.key&&<Check size={18} className="text-blue-600"/>}</div><p className="text-xs text-gray-500 mt-1">{item.description}</p>
       </button>)}</div>
     </section>

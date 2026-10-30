@@ -17,7 +17,10 @@ if (import.meta.env.PROD && "serviceWorker" in navigator) {
 
   window.addEventListener("load", () => {
     navigator.serviceWorker.register("/sw.js", { updateViaCache: "none" })
-      .then(registration => registration.update())
+      .then(registration => {
+        // Проверяем обновление сразу после открытия установленного приложения.
+        void registration.update();
+      })
       .catch(error => console.warn("Не удалось зарегистрировать Service Worker:", error));
   }, { once: true });
 }
