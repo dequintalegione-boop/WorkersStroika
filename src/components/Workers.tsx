@@ -40,10 +40,10 @@ export default function Workers() {
   };
 
   const handleDelete = (id: string) => {
+    const worker = workers.find(w => w.id === id);
+    if (!worker || !confirm(`Удалить рабочего «${worker.full_name}»? Это действие нельзя отменить. Для сохранения истории лучше использовать архив.`)) return;
     const result = deleteWorker(id);
-    if (!result.success) {
-      alert(result.error);
-    }
+    if (!result.success) alert(result.error);
   };
 
   const toggleSort = (field: string) => {

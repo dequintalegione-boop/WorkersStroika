@@ -5,10 +5,11 @@ import App from "./App.tsx";
 
 ReactDOM.createRoot(document.getElementById("root")!).render(<App />);
 
+// Service Worker регистрируется только здесь, один раз и только в production.
 if (import.meta.env.PROD && "serviceWorker" in navigator) {
   window.addEventListener("load", () => {
-    navigator.serviceWorker.register("/sw.js").catch((err) => {
-      console.warn("SW не зарегистрирован:", err);
-    });
-  });
+    navigator.serviceWorker.register("/sw.js", { updateViaCache: "none" })
+      .then(registration => registration.update())
+      .catch(error => console.warn("Не удалось зарегистрировать Service Worker:", error));
+  }, { once: true });
 }

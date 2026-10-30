@@ -36,10 +36,10 @@ export default function Objects() {
   };
 
   const handleDelete = (id: string) => {
+    const object = objects.find(o => o.id === id);
+    if (!object || !confirm(`Удалить объект «${object.name}»? Это действие нельзя отменить. Для сохранения истории лучше использовать архив.`)) return;
     const result = deleteObject(id);
-    if (!result.success) {
-      alert(result.error);
-    }
+    if (!result.success) alert(result.error);
   };
 
   const toggleSort = (field: string) => {

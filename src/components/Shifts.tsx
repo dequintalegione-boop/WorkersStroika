@@ -137,7 +137,11 @@ export default function Shifts() {
         partner_share_override: overridePartner ? form.partner_share_override : null
       };
       if (editingId) {
-        updateShift(editingId, shiftData);
+        const result = updateShift(editingId, shiftData);
+        if (!result.success) {
+          alert(result.error);
+          return;
+        }
       } else {
         const result = addShift(shiftData);
         if (!result.success) {
@@ -369,7 +373,7 @@ export default function Shifts() {
                     volume_unit: obj?.volume_unit || '',
                     volume_quantity: undefined,
                     volume_rate: undefined,
-                    salary: newPaymentType === 'volume' ? 0 : form.salary
+                    salary: newPaymentType === 'volume' || form.payment_type === 'volume' ? 0 : form.salary
                   });
                   setMultiMode(newMultiMode);
                   setSelectedWorkers(newSelectedWorkers);
