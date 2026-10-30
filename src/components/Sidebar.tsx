@@ -1,5 +1,5 @@
 import { ModuleKey, Page } from '../types';
-import { LayoutDashboard, Users, UserCheck, MapPin, Calendar, BarChart3, Database, CalendarDays, ClipboardList, Archive, DollarSign } from 'lucide-react';
+import { LayoutDashboard, Users, UserCheck, MapPin, Calendar, BarChart3, Database, CalendarDays, ClipboardList, Archive, DollarSign, Wallet } from 'lucide-react';
 
 interface SidebarProps {
   currentPage: Page;
@@ -16,6 +16,7 @@ const menuItems: { page: Page; label: string; icon: React.ReactNode }[] = [
   { page: 'objects', label: 'Объекты', icon: <MapPin size={20} /> },
   { page: 'shifts', label: 'Смены', icon: <Calendar size={20} /> },
   { page: 'payroll', label: 'Зарплаты', icon: <DollarSign size={20} /> },
+  { page: 'finance', label: 'Финансы', icon: <Wallet size={20} /> },
   { page: 'statistics', label: 'Статистика', icon: <BarChart3 size={20} /> },
   { page: 'archive', label: 'Архив', icon: <Archive size={20} /> },
   { page: 'import', label: 'Данные', icon: <Database size={20} /> },
