@@ -107,8 +107,8 @@ export default function Finance() {
   };
 
   const openEdit = (item: FinanceTransaction) => {
-    if (item.source_type === 'worker_payment') {
-      alert('Эта операция связана с выплатой рабочего. Изменить её можно в разделе «Зарплаты».');
+    if (item.source_type === 'worker_payment' || item.source_type === 'payroll_accrual') {
+      alert('Эта операция формируется автоматически из зарплатного учёта. Измените смену или запись выплаты в соответствующем разделе.');
       return;
     }
     setEditingId(item.id);
@@ -274,7 +274,7 @@ export default function Finance() {
                   <td className={'px-3 py-3 text-right font-semibold whitespace-nowrap '+(item.type==='income'?'text-emerald-600':item.type==='expense'?'text-rose-600':'text-sky-600')}>{item.type==='income'?'+':item.type==='expense'?'−':'↔ '}{money(item.amount)}</td>
                   <td className="px-3 py-3"><div className="flex justify-end items-center gap-1">
                     {item.status==='planned'&&item.source_type!=='worker_payment'&&<button onClick={()=>confirmPaid(item)} className="inline-flex items-center gap-1 px-2 py-1.5 rounded-lg bg-emerald-600 text-white hover:bg-emerald-700 text-xs font-medium whitespace-nowrap"><CheckCircle2 size={14}/>{item.type==='income'?'Получено':item.type==='expense'?'Оплачено':'Переведено'}</button>}
-                    {item.source_type==='worker_payment'?<span className="text-xs text-gray-400 px-2 py-1">Из зарплат</span>:<><button onClick={()=>openEdit(item)} className="p-2 rounded-lg text-sky-600 hover:bg-sky-50" aria-label="Изменить"><Edit3 size={15}/></button><button onClick={()=>remove(item)} className="p-2 rounded-lg text-rose-600 hover:bg-rose-50" aria-label="Удалить"><Trash2 size={15}/></button></>}
+                    {item.source_type==='worker_payment'?<span className="text-xs text-gray-400 px-2 py-1">Из зарплат</span>:item.source_type==='payroll_accrual'?<span className="text-xs text-violet-500 px-2 py-1">Из смены</span>:<><button onClick={()=>openEdit(item)} className="p-2 rounded-lg text-sky-600 hover:bg-sky-50" aria-label="Изменить"><Edit3 size={15}/></button><button onClick={()=>remove(item)} className="p-2 rounded-lg text-rose-600 hover:bg-rose-50" aria-label="Удалить"><Trash2 size={15}/></button></>}
                   </div></td>
                 </tr>;
               })}

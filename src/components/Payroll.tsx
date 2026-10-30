@@ -17,7 +17,7 @@ export default function Payroll() {
     syncPayrollAccruals, addWorkerPayment, deleteWorkerPayment
   } = useStore();
 
-  const [fromDate, setFromDate] = useState(todayDate());
+  const [fromDate, setFromDate] = useState('');
   const [workerFilter, setWorkerFilter] = useState('');
   const [search, setSearch] = useState('');
   const [showPaymentForm, setShowPaymentForm] = useState(false);
@@ -83,7 +83,7 @@ export default function Payroll() {
       return;
     }
     const accepted = confirm(
-      'Сформировать начисления по сменам начиная с ' + fromDate + '?\n\n' +
+      'Синхронизировать смены по сменам начиная с ' + fromDate + '?\n\n' +
       'Новые начисления будут добавлены один раз. Суммы ранее созданных начислений обновятся по текущим данным смен. История выплат останется без изменений.\n\n' +
       'Смены до выбранной даты не затрагиваются.'
     );
@@ -146,7 +146,7 @@ export default function Payroll() {
 
       <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 text-sm text-blue-800">
         <div className="font-semibold mb-1">Важно при первом запуске</div>
-        Выберите дату начала учёта. По умолчанию это сегодняшний день: старые смены не попадут в задолженность автоматически, потому что зарплата по ним могла быть выплачена раньше. Перед включением прошлых периодов сверьте их с реальными выплатами.
+        Начисления теперь автоматически создаются из каждой смены и сразу попадают в финансовый журнал как сумма к выплате. Выплаты и авансы автоматически уменьшают остаток по самым ранним начислениям. Старые смены также включаются при первом обновлении — проверьте исторические выплаты, внесённые вне приложения.
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3">
@@ -176,7 +176,7 @@ export default function Payroll() {
           </div>
           <div className="flex flex-col sm:flex-row gap-2">
             <label className="text-sm text-gray-600 flex flex-col gap-1">
-              Начислять смены с даты
+              Обновить начисления с даты
               <input type="date" value={fromDate} onChange={event => setFromDate(event.target.value)} className="border rounded-lg px-3 py-2 bg-white" />
             </label>
             <label className="text-sm text-gray-600 flex flex-col gap-1">

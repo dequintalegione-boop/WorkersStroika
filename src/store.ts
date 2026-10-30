@@ -183,6 +183,108 @@ function validateFinanceTransaction(transaction: FinanceTransactionInput, object
   return null;
 }
 
+function syncPayrollLedger(
+  shifts: Shift[],
+  currentAccruals: PayrollAccrual[],
+  payments: WorkerPayment[],
+  currentTransactions: FinanceTransaction[],
+  workers: Worker[],
+  fromDate = ''
+): { payrollAccruals: PayrollAccrual[]; financeTransactions: FinanceTransaction[]; created: number; updated: number; skipped: number } {
+  const accruals = [...currentAccruals];
+  const byShift = new Map(accruals.map(item => [item.shift_id, item]));
+  const now = new Date().toISOString();
+  let created = 0;
+  let updated = 0;
+  let skipped = 0;
+
+  shifts.filter(shift => !fromDate || shift.date >= fromDate).forEach(shift => {
+    const amount = Math.round(calcShiftSalary(shift) * 100) / 100;
+    const existing = byShift.get(shift.id);
+    if (!Number.isFinite(amount) || amount <= 0) {
+      skipped += 1;
+      if (existing) {
+        const index = accruals.findIndex(item => item.id === existing.id);
+        if (index >= 0) accruals.splice(index, 1);
+      }
+      return;
+    }
+    if (!existing) {
+      const item: PayrollAccrual = {
+        id: uuidv4(), shift_id: shift.id, worker_id: shift.worker_id,
+        object_id: shift.object_id || '', date: shift.date, amount,
+        created_at: now, updated_at: now
+      };
+      accruals.push(item);
+      byShift.set(shift.id, item);
+      created += 1;
+      return;
+    }
+    if (existing.amount !== amount || existing.worker_id !== shift.worker_id ||
+        existing.object_id !== (shift.object_id || '') || existing.date !== shift.date) {
+      const refreshed = {
+        ...existing, amount, worker_id: shift.worker_id,
+        object_id: shift.object_id || '', date: shift.date, updated_at: now
+      };
+      const index = accruals.findIndex(item => item.id === existing.id);
+      if (index >= 0) accruals[index] = refreshed;
+      byShift.set(shift.id, refreshed);
+      updated += 1;
+    }
+  });
+
+  // Payments and advances cover the oldest outstanding accruals for the same worker first.
+  const paidRemaining = new Map<string, number>();
+  payments.forEach(payment => {
+    paidRemaining.set(payment.worker_id, (paidRemaining.get(payment.worker_id) || 0) + payment.amount);
+  });
+  const outstanding = new Map<string, number>();
+  const ordered = [...accruals].sort((a, b) => a.date.localeCompare(b.date) || a.created_at.localeCompare(b.created_at));
+  ordered.forEach(accrual => {
+    const available = paidRemaining.get(accrual.worker_id) || 0;
+    const applied = Math.min(accrual.amount, available);
+    outstanding.set(accrual.id, Math.round((accrual.amount - applied) * 100) / 100);
+    paidRemaining.set(accrual.worker_id, Math.max(0, Math.round((available - applied) * 100) / 100));
+  });
+
+  const baseTransactions = currentTransactions.filter(item => item.source_type !== 'payroll_accrual');
+  const oldPayables = new Map(
+    currentTransactions.filter(item => item.source_type === 'payroll_accrual')
+      .map(item => [item.source_id || '', item])
+  );
+  const payables: FinanceTransaction[] = [];
+  ordered.forEach(accrual => {
+    const amount = outstanding.get(accrual.id) || 0;
+    if (amount <= 0) return;
+    const old = oldPayables.get(accrual.id);
+    const worker = workers.find(item => item.id === accrual.worker_id);
+    payables.push({
+      id: old?.id || uuidv4(),
+      type: 'expense',
+      date: accrual.date,
+      amount,
+      category: 'Зарплата по смене',
+      object_id: accrual.object_id || '',
+      counterparty: worker?.full_name || 'Рабочий',
+      account: old?.account || 'cash',
+      status: 'planned',
+      comment: 'Начисление за смену · ' + accrual.shift_id,
+      source_type: 'payroll_accrual',
+      source_id: accrual.id,
+      created_at: old?.created_at || accrual.created_at,
+      updated_at: now
+    });
+  });
+
+  return {
+    payrollAccruals: accruals,
+    financeTransactions: [...baseTransactions, ...payables],
+    created,
+    updated,
+    skipped
+  };
+}
+
 function normalizeFinanceTransaction(transaction: FinanceTransactionInput): FinanceTransactionInput {
   if (transaction.type === 'transfer') {
     return { ...transaction, category: 'Перевод между счетами', object_id: '', counterparty: transaction.counterparty?.trim() || '', comment: transaction.comment?.trim() || '', account: undefined };
@@ -349,29 +451,24 @@ export const useStore = create<AppState>()(
       },
 
       addShift: (s) => {
-        // Валидация объёмной оплаты
         if (s.payment_type === 'volume') {
           const validation = validateVolumeShift(s);
-          if (!validation.valid) {
-            return { success: false, error: validation.error };
-          }
-          // Синхронизируем salary с расчётным значением
+          if (!validation.valid) return { success: false, error: validation.error };
           s = { ...s, salary: calcShiftSalary(s) };
         }
-        set((state) => ({
-          shifts: [...state.shifts, { ...s, id: uuidv4() }]
-        }));
+        const state = get();
+        const shifts = [...state.shifts, { ...s, id: uuidv4() }];
+        const ledger = syncPayrollLedger(shifts, state.payrollAccruals, state.workerPayments, state.financeTransactions, state.workers);
+        set({ shifts, payrollAccruals: ledger.payrollAccruals, financeTransactions: ledger.financeTransactions });
         return { success: true };
       },
       addShifts: (shiftsArr) => {
-        // Запрет массового создания объёмных смен
         const hasVolume = shiftsArr.some(s => s.payment_type === 'volume');
-        if (hasVolume) {
-          return { success: false, error: 'Массовое создание объёмных смен запрещено. Каждый рабочий должен иметь индивидуальный объём.' };
-        }
-        set((state) => ({
-          shifts: [...state.shifts, ...shiftsArr.map((s) => ({ ...s, id: uuidv4() }))]
-        }));
+        if (hasVolume) return { success: false, error: 'Массовое создание объёмных смен запрещено. Каждый рабочий должен иметь индивидуальный объём.' };
+        const state = get();
+        const shifts = [...state.shifts, ...shiftsArr.map(s => ({ ...s, id: uuidv4() }))];
+        const ledger = syncPayrollLedger(shifts, state.payrollAccruals, state.workerPayments, state.financeTransactions, state.workers);
+        set({ shifts, payrollAccruals: ledger.payrollAccruals, financeTransactions: ledger.financeTransactions });
         return { success: true };
       },
       updateShift: (id, s) => {
@@ -385,7 +482,13 @@ export const useStore = create<AppState>()(
           merged.salary = calcShiftSalary(merged);
         }
 
-        set(state => ({ shifts: state.shifts.map(x => x.id === id ? merged : x) }));
+        if (existing.worker_id !== merged.worker_id && get().payrollAccruals.some(item => item.shift_id === id)) {
+          return { success: false, error: 'Нельзя заменить рабочего в смене, по которой уже начислена зарплата. Это сохранит историю начислений и выплат.' };
+        }
+        const state = get();
+        const shifts = state.shifts.map(x => x.id === id ? merged : x);
+        const ledger = syncPayrollLedger(shifts, state.payrollAccruals, state.workerPayments, state.financeTransactions, state.workers);
+        set({ shifts, payrollAccruals: ledger.payrollAccruals, financeTransactions: ledger.financeTransactions });
         return { success: true };
       },
       deleteShift: (id) => {
@@ -427,35 +530,12 @@ export const useStore = create<AppState>()(
 
       syncPayrollAccruals: (fromDate) => {
         const state = get();
-        const existingByShift = new Map(state.payrollAccruals.map(a => [a.shift_id, a]));
-        const next = [...state.payrollAccruals];
-        const now = new Date().toISOString();
-        let created = 0;
-        let updated = 0;
-        let skipped = 0;
-        state.shifts.filter(s => !fromDate || s.date >= fromDate).forEach(shift => {
-          const amount = calcShiftSalary(shift);
-          if (!Number.isFinite(amount) || amount <= 0) { skipped += 1; return; }
-          const current = existingByShift.get(shift.id);
-          if (!current) {
-            const accrual: PayrollAccrual = {
-              id: uuidv4(), shift_id: shift.id, worker_id: shift.worker_id,
-              object_id: shift.object_id || '', date: shift.date, amount,
-              created_at: now, updated_at: now
-            };
-            next.push(accrual);
-            created += 1;
-            return;
-          }
-          if (current.amount !== amount || current.worker_id !== shift.worker_id || current.object_id !== (shift.object_id || '') || current.date !== shift.date) {
-            const refreshed = { ...current, amount, worker_id: shift.worker_id, object_id: shift.object_id || '', date: shift.date, updated_at: now };
-            const index = next.findIndex(a => a.id === current.id);
-            if (index >= 0) next[index] = refreshed;
-            updated += 1;
-          }
-        });
-        set({ payrollAccruals: next });
-        return { created, updated, skipped };
+        const ledger = syncPayrollLedger(
+          state.shifts, state.payrollAccruals, state.workerPayments,
+          state.financeTransactions, state.workers, fromDate || ''
+        );
+        set({ payrollAccruals: ledger.payrollAccruals, financeTransactions: ledger.financeTransactions });
+        return { created: ledger.created, updated: ledger.updated, skipped: ledger.skipped };
       },
       addWorkerPayment: (payment) => {
         const state = get();
@@ -475,13 +555,19 @@ export const useStore = create<AppState>()(
           source_type: 'worker_payment', source_id: item.id,
           created_at: item.created_at, updated_at: item.created_at
         };
-        set(current => ({ workerPayments: [...current.workerPayments, item], financeTransactions: [...current.financeTransactions, financeItem] }));
+        const workerPayments = [...state.workerPayments, item];
+        const financeTransactions = [...state.financeTransactions, financeItem];
+        const ledger = syncPayrollLedger(state.shifts, state.payrollAccruals, workerPayments, financeTransactions, state.workers);
+        set({ workerPayments, payrollAccruals: ledger.payrollAccruals, financeTransactions: ledger.financeTransactions });
         return { success: true };
       },
-      deleteWorkerPayment: (id) => set(state => ({
-        workerPayments: state.workerPayments.filter(p => p.id !== id),
-        financeTransactions: state.financeTransactions.filter(t => !(t.source_type === 'worker_payment' && t.source_id === id))
-      })),
+      deleteWorkerPayment: (id) => {
+        const state = get();
+        const workerPayments = state.workerPayments.filter(p => p.id !== id);
+        const financeTransactions = state.financeTransactions.filter(t => !(t.source_type === 'worker_payment' && t.source_id === id));
+        const ledger = syncPayrollLedger(state.shifts, state.payrollAccruals, workerPayments, financeTransactions, state.workers);
+        set({ workerPayments, payrollAccruals: ledger.payrollAccruals, financeTransactions: ledger.financeTransactions });
+      },
       addFinanceTransaction: (transaction) => {
         const error = validateFinanceTransaction(transaction, get().objects);
         if (error) return { success: false, error };
@@ -493,7 +579,7 @@ export const useStore = create<AppState>()(
       updateFinanceTransaction: (id, transaction) => {
         const existing = get().financeTransactions.find(t => t.id === id);
         if (!existing) return { success: false, error: 'Финансовая операция не найдена.' };
-        if (existing.source_type === 'worker_payment') return { success: false, error: 'Эта операция создана из раздела зарплат. Изменяйте её через запись выплаты рабочего.' };
+        if (existing.source_type === 'worker_payment' || existing.source_type === 'payroll_accrual') return { success: false, error: 'Эта операция формируется из зарплатной ведомости. Изменяйте её в разделе «Зарплаты» или через исходную смену.' };
         const error = validateFinanceTransaction(transaction, get().objects);
         if (error) return { success: false, error };
         const updated: FinanceTransaction = { ...existing, ...normalizeFinanceTransaction(transaction), source_type: 'manual', source_id: undefined, updated_at: new Date().toISOString() };
@@ -503,7 +589,7 @@ export const useStore = create<AppState>()(
       deleteFinanceTransaction: (id) => {
         const existing = get().financeTransactions.find(t => t.id === id);
         if (!existing) return { success: false, error: 'Финансовая операция не найдена.' };
-        if (existing.source_type === 'worker_payment') return { success: false, error: 'Эта операция связана с выплатой рабочего. Удалите запись выплаты в разделе «Зарплаты».' };
+        if (existing.source_type === 'worker_payment' || existing.source_type === 'payroll_accrual') return { success: false, error: 'Эта операция связана с зарплатным учётом и не удаляется отдельно.' };
         set(state => ({ financeTransactions: state.financeTransactions.filter(t => t.id !== id) }));
         return { success: true };
       },
@@ -512,12 +598,45 @@ export const useStore = create<AppState>()(
         set(state => ({ financeOpeningBalances: { ...state.financeOpeningBalances, [account]: Math.round(amount * 100) / 100 } }));
       },
       markFinanceTransactionPaid: (id) => {
-        const existing = get().financeTransactions.find(t => t.id === id);
+        const state = get();
+        const existing = state.financeTransactions.find(t => t.id === id);
         if (!existing) return { success: false, error: 'Операция не найдена. Обновите список.' };
         if (existing.status === 'paid') return { success: false, error: 'Эта операция уже отмечена как оплаченная.' };
         if (existing.source_type === 'worker_payment') return { success: false, error: 'Статус выплаты рабочего изменяется в разделе зарплат.' };
-        set(state => ({
-          financeTransactions: state.financeTransactions.map(t =>
+
+        if (existing.source_type === 'payroll_accrual') {
+          const accrual = state.payrollAccruals.find(item => item.id === existing.source_id);
+          if (!accrual || !state.workers.some(worker => worker.id === accrual.worker_id)) {
+            return { success: false, error: 'Не удалось найти рабочего для начисления. Проверьте данные смены.' };
+          }
+          const now = new Date().toISOString();
+          const paidDate = now.slice(0, 10);
+          const payment: WorkerPayment = {
+            id: uuidv4(), worker_id: accrual.worker_id, date: paidDate,
+            amount: existing.amount, kind: 'salary',
+            method: existing.account || 'cash',
+            comment: 'Оплата начисления за смену',
+            created_at: now
+          };
+          const workerPayments = [...state.workerPayments, payment];
+          const financeTransactions = state.financeTransactions.map(item => item.id === id ? {
+            ...item,
+            date: paidDate,
+            category: 'Зарплата рабочим',
+            status: 'paid' as const,
+            counterparty: state.workers.find(worker => worker.id === accrual.worker_id)?.full_name || 'Рабочий',
+            comment: payment.comment,
+            source_type: 'worker_payment' as const,
+            source_id: payment.id,
+            updated_at: now
+          } : item);
+          const ledger = syncPayrollLedger(state.shifts, state.payrollAccruals, workerPayments, financeTransactions, state.workers);
+          set({ workerPayments, payrollAccruals: ledger.payrollAccruals, financeTransactions: ledger.financeTransactions });
+          return { success: true };
+        }
+
+        set(stateNow => ({
+          financeTransactions: stateNow.financeTransactions.map(t =>
             t.id === id ? { ...t, status: 'paid', updated_at: new Date().toISOString() } : t
           )
         }));
@@ -862,8 +981,20 @@ export const useStore = create<AppState>()(
     }),
     { 
       name: 'brigade-tracker-storage',
-      version: 12,
+      version: 13,
       migrate: (persistedState: any, version: number) => {
+        // v12 → v13: automatically register all historical shift wages in payroll and finance.
+        if (version < 13) {
+          const ledger = syncPayrollLedger(
+            persistedState.shifts || [],
+            persistedState.payrollAccruals || [],
+            persistedState.workerPayments || [],
+            persistedState.financeTransactions || [],
+            persistedState.workers || []
+          );
+          persistedState.payrollAccruals = ledger.payrollAccruals;
+          persistedState.financeTransactions = ledger.financeTransactions;
+        }
         // v11 → v12: add object profitability menu without overwriting user module preferences.
         if (version < 12) persistedState.appModules = { ...DEFAULT_MODULES, ...(persistedState.appModules || {}) };
         // v10 → v11: store opening balances separately from income and expenses.

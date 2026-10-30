@@ -90,7 +90,7 @@ export interface WorkerPayment {
 export type FinanceType = 'income' | 'expense' | 'transfer';
 export type FinanceStatus = 'paid' | 'planned';
 export type FinanceAccount = 'cash' | 'bank' | 'other';
-export type FinanceSourceType = 'manual' | 'worker_payment';
+export type FinanceSourceType = 'manual' | 'worker_payment' | 'payroll_accrual';
 
 export interface FinanceTransaction {
   id: string;
