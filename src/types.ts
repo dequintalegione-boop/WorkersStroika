@@ -87,12 +87,38 @@ export interface WorkerPayment {
   created_at: string;
 }
 
-export type Page = 'dashboard' | 'workers' | 'partners' | 'objects' | 'shifts' | 'statistics' | 'import' | 'calendar' | 'planning' | 'archive' | 'settings' | 'payroll';
+export type FinanceType = 'income' | 'expense' | 'transfer';
+export type FinanceStatus = 'paid' | 'planned';
+export type FinanceAccount = 'cash' | 'bank' | 'other';
+export type FinanceSourceType = 'manual' | 'worker_payment';
+
+export interface FinanceTransaction {
+  id: string;
+  type: FinanceType;
+  date: string;
+  amount: number;
+  category: string;
+  object_id: string;
+  counterparty: string;
+  account?: FinanceAccount;
+  from_account?: FinanceAccount;
+  to_account?: FinanceAccount;
+  status: FinanceStatus;
+  comment: string;
+  source_type?: FinanceSourceType;
+  source_id?: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export type FinanceTransactionInput = Omit<FinanceTransaction, 'id' | 'created_at' | 'updated_at' | 'source_type' | 'source_id'>;
+
+export type Page = 'dashboard' | 'workers' | 'partners' | 'objects' | 'shifts' | 'statistics' | 'import' | 'calendar' | 'planning' | 'archive' | 'settings' | 'payroll' | 'finance';
 
 export type SortDirection = 'asc' | 'desc' | null;
 
 export type Theme = 'light' | 'dark' | 'modern-dark';
 
-export type ModuleKey = 'dashboard' | 'calendar' | 'planning' | 'workers' | 'partners' | 'objects' | 'shifts' | 'statistics' | 'archive' | 'import' | 'payroll';
+export type ModuleKey = 'dashboard' | 'calendar' | 'planning' | 'workers' | 'partners' | 'objects' | 'shifts' | 'statistics' | 'archive' | 'import' | 'payroll' | 'finance';
 
 export type DashboardMode = 'active' | 'all';

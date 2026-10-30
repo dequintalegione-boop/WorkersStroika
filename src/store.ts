@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { v4 as uuidv4 } from 'uuid';
-import { Worker, Partner, WorkObject, Shift, PlanningEntry, PayrollAccrual, WorkerPayment, Theme, PaymentType, ModuleKey } from './types';
+import { Worker, Partner, WorkObject, Shift, PlanningEntry, PayrollAccrual, WorkerPayment, FinanceTransaction, FinanceTransactionInput, FinanceAccount, Theme, PaymentType, ModuleKey } from './types';
 
 // Единая функция расчёта зарплаты за смену
 export function calcShiftSalary(shift: Shift | Omit<Shift, 'id'>): number {
@@ -54,7 +54,7 @@ export interface IntegrityIssue {
   message: string;
 }
 
-export function checkIntegrity(state: { workers: Worker[]; partners: Partner[]; objects: WorkObject[]; shifts: Shift[]; planning: PlanningEntry[]; payrollAccruals?: PayrollAccrual[]; workerPayments?: WorkerPayment[] }): IntegrityIssue[] {
+export function checkIntegrity(state: { workers: Worker[]; partners: Partner[]; objects: WorkObject[]; shifts: Shift[]; planning: PlanningEntry[]; payrollAccruals?: PayrollAccrual[]; workerPayments?: WorkerPayment[]; financeTransactions?: FinanceTransaction[] }): IntegrityIssue[] {
   const issues: IntegrityIssue[] = [];
   const workerIds = new Set(state.workers.map(w => w.id));
   const partnerIds = new Set(state.partners.map(p => p.id));
@@ -106,6 +106,7 @@ export function checkIntegrity(state: { workers: Worker[]; partners: Partner[]; 
 
   const payrollAccruals = state.payrollAccruals || [];
   const workerPayments = state.workerPayments || [];
+  const financeTransactions = state.financeTransactions || [];
   if (new Set(payrollAccruals.map(a => a.id)).size !== payrollAccruals.length) {
     issues.push({ level: 'critical', entity: 'payrollAccruals', id: '-', message: 'Дублирующиеся ID начислений зарплаты' });
   }
@@ -122,6 +123,32 @@ export function checkIntegrity(state: { workers: Worker[]; partners: Partner[]; 
   workerPayments.forEach(p => {
     if (!workerIds.has(p.worker_id)) issues.push({ level: 'error', entity: 'workerPayment', id: p.id, message: 'Выплата связана с несуществующим рабочим' });
     if (!Number.isFinite(p.amount) || p.amount <= 0) issues.push({ level: 'error', entity: 'workerPayment', id: p.id, message: 'Некорректная сумма выплаты' });
+  });
+
+  if (new Set(financeTransactions.map(t => t.id)).size !== financeTransactions.length) {
+    issues.push({ level: 'critical', entity: 'financeTransactions', id: '-', message: 'Дублирующиеся ID финансовых операций' });
+  }
+  const paymentLinks = financeTransactions.filter(t => t.source_type === 'worker_payment').map(t => t.source_id);
+  if (new Set(paymentLinks).size !== paymentLinks.length) {
+    issues.push({ level: 'critical', entity: 'financeTransactions', id: '-', message: 'Одна выплата рабочего связана с несколькими расходами' });
+  }
+  financeTransactions.forEach(t => {
+    const validDate = typeof t.date === 'string' && /^[0-9]{4}-[0-9]{2}-[0-9]{2}$/.test(t.date);
+    if (!validDate || !Number.isFinite(t.amount) || t.amount <= 0) {
+      issues.push({ level: 'error', entity: 'financeTransaction', id: t.id, message: 'Некорректная дата или сумма финансовой операции' });
+    }
+    if (!['income', 'expense', 'transfer'].includes(t.type) || !['paid', 'planned'].includes(t.status)) {
+      issues.push({ level: 'error', entity: 'financeTransaction', id: t.id, message: 'Неизвестный тип или статус финансовой операции' });
+    }
+    if (t.object_id && !objectIds.has(t.object_id)) {
+      issues.push({ level: 'warning', entity: 'financeTransaction', id: t.id, message: 'Операция связана с несуществующим объектом' });
+    }
+    if (t.type === 'transfer' && (!t.from_account || !t.to_account || t.from_account === t.to_account)) {
+      issues.push({ level: 'error', entity: 'financeTransaction', id: t.id, message: 'Некорректный перевод между счетами' });
+    }
+    if (t.type !== 'transfer' && (!t.category?.trim() || !t.account)) {
+      issues.push({ level: 'error', entity: 'financeTransaction', id: t.id, message: 'Для дохода или расхода не указаны категория и счёт' });
+    }
   });
 
   // Рабочие с несуществующим партнёром
@@ -142,16 +169,12 @@ const FINANCE_ACCOUNTS: FinanceAccount[] = ['cash', 'bank', 'other'];
 
 function validateFinanceTransaction(transaction: FinanceTransactionInput, objects: WorkObject[]): string | null {
   if (!['income', 'expense', 'transfer'].includes(transaction.type)) return 'Выберите корректный тип операции.';
-  if (!transaction.date || !/^\\d{4}-\\d{2}-\\d{2}$/.test(transaction.date) || Number.isNaN(Date.parse(transaction.date + 'T00:00:00'))) {
-    return 'Укажите корректную дату.';
-  }
+  if (!transaction.date || !/^[0-9]{4}-[0-9]{2}-[0-9]{2}$/.test(transaction.date) || Number.isNaN(Date.parse(transaction.date + 'T00:00:00'))) return 'Укажите корректную дату.';
   if (!Number.isFinite(transaction.amount) || transaction.amount <= 0) return 'Сумма должна быть больше нуля.';
   if (!['paid', 'planned'].includes(transaction.status)) return 'Выберите корректный статус операции.';
   if (transaction.object_id && !objects.some(object => object.id === transaction.object_id)) return 'Выбранный объект не найден.';
   if (transaction.type === 'transfer') {
-    if (!transaction.from_account || !transaction.to_account || !FINANCE_ACCOUNTS.includes(transaction.from_account) || !FINANCE_ACCOUNTS.includes(transaction.to_account)) {
-      return 'Укажите счёт списания и счёт зачисления.';
-    }
+    if (!transaction.from_account || !transaction.to_account || !FINANCE_ACCOUNTS.includes(transaction.from_account) || !FINANCE_ACCOUNTS.includes(transaction.to_account)) return 'Укажите счёт списания и счёт зачисления.';
     if (transaction.from_account === transaction.to_account) return 'Счета перевода должны отличаться.';
   } else {
     if (!transaction.category?.trim()) return 'Укажите категорию операции.';
@@ -162,29 +185,14 @@ function validateFinanceTransaction(transaction: FinanceTransactionInput, object
 
 function normalizeFinanceTransaction(transaction: FinanceTransactionInput): FinanceTransactionInput {
   if (transaction.type === 'transfer') {
-    return {
-      ...transaction,
-      category: 'Перевод между счетами',
-      object_id: '',
-      counterparty: transaction.counterparty?.trim() || '',
-      comment: transaction.comment?.trim() || '',
-      account: undefined
-    };
+    return { ...transaction, category: 'Перевод между счетами', object_id: '', counterparty: transaction.counterparty?.trim() || '', comment: transaction.comment?.trim() || '', account: undefined };
   }
-  return {
-    ...transaction,
-    category: transaction.category.trim(),
-    object_id: transaction.object_id || '',
-    counterparty: transaction.counterparty?.trim() || '',
-    comment: transaction.comment?.trim() || '',
-    from_account: undefined,
-    to_account: undefined
-  };
+  return { ...transaction, category: transaction.category.trim(), object_id: transaction.object_id || '', counterparty: transaction.counterparty?.trim() || '', comment: transaction.comment?.trim() || '', from_account: undefined, to_account: undefined };
 }
 
 const DEFAULT_MODULES: Record<ModuleKey, boolean> = {
   dashboard: true, calendar: true, planning: true, workers: true, partners: true,
-  objects: true, shifts: true, statistics: true, archive: true, import: true, payroll: true
+  objects: true, shifts: true, statistics: true, archive: true, import: true, payroll: true, finance: true
 };
 
 interface AppState {
@@ -195,6 +203,7 @@ interface AppState {
   planning: PlanningEntry[];
   payrollAccruals: PayrollAccrual[];
   workerPayments: WorkerPayment[];
+  financeTransactions: FinanceTransaction[];
   theme: Theme;
   setTheme: (theme: Theme) => void;
   appModules: Record<ModuleKey, boolean>;
@@ -202,6 +211,9 @@ interface AppState {
   syncPayrollAccruals: (fromDate: string) => { created: number; updated: number; skipped: number };
   addWorkerPayment: (payment: Omit<WorkerPayment, 'id' | 'created_at'>) => { success: boolean; error?: string };
   deleteWorkerPayment: (id: string) => void;
+  addFinanceTransaction: (transaction: FinanceTransactionInput) => { success: boolean; error?: string };
+  updateFinanceTransaction: (id: string, transaction: FinanceTransactionInput) => { success: boolean; error?: string };
+  deleteFinanceTransaction: (id: string) => { success: boolean; error?: string };
 
   // Worker CRUD
   addWorker: (w: Omit<Worker, 'id'>) => void;
@@ -272,6 +284,7 @@ export const useStore = create<AppState>()(
       planning: [],
       payrollAccruals: [],
       workerPayments: [],
+      financeTransactions: [],
       theme: 'light' as Theme,
       setTheme: (theme) => set({ theme }),
       appModules: { ...DEFAULT_MODULES },
@@ -447,10 +460,48 @@ export const useStore = create<AppState>()(
         if (!['salary', 'advance'].includes(payment.kind)) return { success: false, error: 'Неизвестный тип выплаты.' };
         if (!['cash', 'bank', 'other'].includes(payment.method)) return { success: false, error: 'Неизвестный способ выплаты.' };
         const item: WorkerPayment = { ...payment, amount: Math.round(payment.amount * 100) / 100, id: uuidv4(), created_at: new Date().toISOString() };
-        set(current => ({ workerPayments: [...current.workerPayments, item] }));
+        const worker = state.workers.find(w => w.id === payment.worker_id);
+        const financeItem: FinanceTransaction = {
+          id: uuidv4(), type: 'expense', date: item.date, amount: item.amount,
+          category: item.kind === 'advance' ? 'Авансы рабочим' : 'Зарплата рабочим',
+          object_id: '', counterparty: worker?.full_name || 'Рабочий',
+          account: item.method === 'cash' ? 'cash' : item.method === 'bank' ? 'bank' : 'other',
+          status: 'paid', comment: item.comment || (item.kind === 'advance' ? 'Аванс рабочему' : 'Выплата зарплаты'),
+          source_type: 'worker_payment', source_id: item.id,
+          created_at: item.created_at, updated_at: item.created_at
+        };
+        set(current => ({ workerPayments: [...current.workerPayments, item], financeTransactions: [...current.financeTransactions, financeItem] }));
         return { success: true };
       },
-      deleteWorkerPayment: (id) => set(state => ({ workerPayments: state.workerPayments.filter(p => p.id !== id) })),
+      deleteWorkerPayment: (id) => set(state => ({
+        workerPayments: state.workerPayments.filter(p => p.id !== id),
+        financeTransactions: state.financeTransactions.filter(t => !(t.source_type === 'worker_payment' && t.source_id === id))
+      })),
+      addFinanceTransaction: (transaction) => {
+        const error = validateFinanceTransaction(transaction, get().objects);
+        if (error) return { success: false, error };
+        const now = new Date().toISOString();
+        const item: FinanceTransaction = { ...normalizeFinanceTransaction(transaction), id: uuidv4(), source_type: 'manual', created_at: now, updated_at: now };
+        set(state => ({ financeTransactions: [...state.financeTransactions, item] }));
+        return { success: true };
+      },
+      updateFinanceTransaction: (id, transaction) => {
+        const existing = get().financeTransactions.find(t => t.id === id);
+        if (!existing) return { success: false, error: 'Финансовая операция не найдена.' };
+        if (existing.source_type === 'worker_payment') return { success: false, error: 'Эта операция создана из раздела зарплат. Изменяйте её через запись выплаты рабочего.' };
+        const error = validateFinanceTransaction(transaction, get().objects);
+        if (error) return { success: false, error };
+        const updated: FinanceTransaction = { ...existing, ...normalizeFinanceTransaction(transaction), source_type: 'manual', source_id: undefined, updated_at: new Date().toISOString() };
+        set(state => ({ financeTransactions: state.financeTransactions.map(t => t.id === id ? updated : t) }));
+        return { success: true };
+      },
+      deleteFinanceTransaction: (id) => {
+        const existing = get().financeTransactions.find(t => t.id === id);
+        if (!existing) return { success: false, error: 'Финансовая операция не найдена.' };
+        if (existing.source_type === 'worker_payment') return { success: false, error: 'Эта операция связана с выплатой рабочего. Удалите запись выплаты в разделе «Зарплаты».' };
+        set(state => ({ financeTransactions: state.financeTransactions.filter(t => t.id !== id) }));
+        return { success: true };
+      },
 
       getWorker: (id) => get().workers.find((w) => w.id === id),
       getObject: (id) => get().objects.find((o) => o.id === id),
@@ -499,7 +550,8 @@ export const useStore = create<AppState>()(
           shifts: state.shifts,
           planning: state.planning,
           payrollAccruals: state.payrollAccruals,
-          workerPayments: state.workerPayments
+          workerPayments: state.workerPayments,
+          financeTransactions: state.financeTransactions
         });
       },
 
@@ -531,6 +583,8 @@ export const useStore = create<AppState>()(
           const normalizedPlanning = (data.planning || []).map((p: any) => normalizeId(p, 'planning'));
           const normalizedPayrollAccruals = (data.payrollAccruals || []).map((a: any) => normalizeId(a, 'payrollAccrual'));
           const normalizedWorkerPayments = (data.workerPayments || []).map((p: any) => normalizeId(p, 'workerPayment'));
+          const financeDataProvided = Array.isArray(data.financeTransactions);
+          const normalizedFinanceTransactions = (financeDataProvided ? data.financeTransactions : []).map((t: any) => normalizeId(t, 'financeTransaction'));
           if ((!Array.isArray(data.payrollAccruals) || !Array.isArray(data.workerPayments)) && (get().payrollAccruals.length || get().workerPayments.length)) {
             warnings.push('Файл резервной копии не содержит начислений или выплат. При импорте эти финансовые записи будут заменены пустыми списками.');
           }
@@ -547,7 +601,7 @@ export const useStore = create<AppState>()(
           const dupError = checkUnique(normalizedWorkers, 'workers') || checkUnique(normalizedPartners, 'partners') ||
                            checkUnique(normalizedObjects, 'objects') || checkUnique(normalizedShifts, 'shifts') ||
                            checkUnique(normalizedPlanning, 'planning') || checkUnique(normalizedPayrollAccruals, 'payrollAccruals') ||
-                           checkUnique(normalizedWorkerPayments, 'workerPayments');
+                           checkUnique(normalizedWorkerPayments, 'workerPayments') || checkUnique(normalizedFinanceTransactions, 'financeTransactions');
           if (dupError) {
             return { success: false, error: dupError };
           }
@@ -584,6 +638,20 @@ export const useStore = create<AppState>()(
               linkErrors.push(`Выплата №${i + 1}: некорректная сумма, тип или связь с рабочим`);
             }
           });
+          normalizedFinanceTransactions.forEach((t: any, i: number) => {
+            const commonValid = typeof t.date === 'string' && /^[0-9]{4}-[0-9]{2}-[0-9]{2}$/.test(t.date) && typeof t.amount === 'number' && Number.isFinite(t.amount) && t.amount > 0 && ['paid', 'planned'].includes(t.status);
+            const accountValid = ['cash', 'bank', 'other'].includes(t.account);
+            const transferValid = ['cash', 'bank', 'other'].includes(t.from_account) && ['cash', 'bank', 'other'].includes(t.to_account) && t.from_account !== t.to_account;
+            const typeValid = ['income', 'expense', 'transfer'].includes(t.type);
+            if (!commonValid || !typeValid || (t.type === 'transfer' ? !transferValid : (!accountValid || typeof t.category !== 'string' || !t.category.trim())) || (t.object_id && !objectIds.has(t.object_id))) {
+              linkErrors.push(`Финансовая операция №${i + 1}: некорректные поля, счёт или связь с объектом`);
+            }
+            if (t.source_type === 'worker_payment' && !normalizedWorkerPayments.some((p: any) => p.id === t.source_id)) {
+              linkErrors.push(`Финансовая операция №${i + 1}: не найдена связанная выплата рабочего`);
+            }
+          });
+          const sourceIds = normalizedFinanceTransactions.filter((t: any) => t.source_type === 'worker_payment').map((t: any) => t.source_id);
+          if (new Set(sourceIds).size !== sourceIds.length) linkErrors.push('Одна выплата рабочего связана с несколькими финансовыми операциями');
           normalizedPlanning.forEach((p: any) => {
             if (!p.worker_id || !workerIds.has(p.worker_id)) {
               linkErrors.push('Запись планирования ссылается на несуществующего рабочего');
@@ -658,6 +726,30 @@ export const useStore = create<AppState>()(
           const importedWorkerPayments = normalizedWorkerPayments.map((p: any) => ({
             ...p, comment: p.comment ?? '', created_at: p.created_at || new Date().toISOString()
           }));
+          const importedFinanceTransactions: FinanceTransaction[] = normalizedFinanceTransactions.map((t: any) => ({
+            ...t,
+            category: t.category ?? '',
+            object_id: t.object_id ?? '',
+            counterparty: t.counterparty ?? '',
+            comment: t.comment ?? '',
+            created_at: t.created_at || new Date().toISOString(),
+            updated_at: t.updated_at || t.created_at || new Date().toISOString()
+          }));
+          const linkedPaymentIds = new Set(importedFinanceTransactions.filter(t => t.source_type === 'worker_payment').map(t => t.source_id));
+          importedWorkerPayments.forEach((payment: WorkerPayment) => {
+            if (linkedPaymentIds.has(payment.id)) return;
+            const worker = importedWorkers.find((w: any) => w.id === payment.worker_id);
+            const stamp = payment.created_at || new Date().toISOString();
+            importedFinanceTransactions.push({
+              id: uuidv4(), type: 'expense', date: payment.date, amount: payment.amount,
+              category: payment.kind === 'advance' ? 'Авансы рабочим' : 'Зарплата рабочим',
+              object_id: '', counterparty: worker?.full_name || 'Рабочий',
+              account: payment.method === 'cash' ? 'cash' : payment.method === 'bank' ? 'bank' : 'other',
+              status: 'paid', comment: payment.comment || 'Выплата рабочему',
+              source_type: 'worker_payment', source_id: payment.id,
+              created_at: stamp, updated_at: stamp
+            });
+          });
 
           const fieldErrors: string[] = [];
           const isText = (value: any) => typeof value === 'string';
@@ -709,7 +801,8 @@ export const useStore = create<AppState>()(
             shifts: importedShifts,
             planning: importedPlanning,
             payrollAccruals: importedPayrollAccruals,
-            workerPayments: importedWorkerPayments
+            workerPayments: importedWorkerPayments,
+            financeTransactions: importedFinanceTransactions
           });
 
           return { success: true, warnings: warnings.length > 0 ? warnings : undefined };
@@ -726,14 +819,38 @@ export const useStore = create<AppState>()(
           shifts: state.shifts,
           planning: state.planning,
           payrollAccruals: state.payrollAccruals,
-          workerPayments: state.workerPayments
+          workerPayments: state.workerPayments,
+          financeTransactions: state.financeTransactions
         }, null, 2);
       }
     }),
     { 
       name: 'brigade-tracker-storage',
-      version: 9,
+      version: 10,
       migrate: (persistedState: any, version: number) => {
+        // v9 → v10: add financial journal and link past salary payments exactly once.
+        if (version < 10) {
+          const transactions = Array.isArray(persistedState.financeTransactions) ? persistedState.financeTransactions : [];
+          const linked = new Set(transactions.filter((t: any) => t.source_type === 'worker_payment').map((t: any) => t.source_id));
+          const workers = Array.isArray(persistedState.workers) ? persistedState.workers : [];
+          const payments = Array.isArray(persistedState.workerPayments) ? persistedState.workerPayments : [];
+          payments.forEach((payment: any) => {
+            if (linked.has(payment.id)) return;
+            const worker = workers.find((w: any) => w.id === payment.worker_id);
+            const stamp = payment.created_at || new Date().toISOString();
+            transactions.push({
+              id: uuidv4(), type: 'expense', date: payment.date, amount: payment.amount,
+              category: payment.kind === 'advance' ? 'Авансы рабочим' : 'Зарплата рабочим',
+              object_id: '', counterparty: worker?.full_name || 'Рабочий',
+              account: payment.method === 'cash' ? 'cash' : payment.method === 'bank' ? 'bank' : 'other',
+              status: 'paid', comment: payment.comment || 'Выплата рабочему',
+              source_type: 'worker_payment', source_id: payment.id,
+              created_at: stamp, updated_at: stamp
+            });
+          });
+          persistedState.financeTransactions = transactions;
+          persistedState.appModules = { ...DEFAULT_MODULES, ...(persistedState.appModules || {}) };
+        }
         // v8 → v9: add payroll ledger while preserving existing workers, shifts and settings.
         if (version < 9) {
           persistedState.payrollAccruals = persistedState.payrollAccruals || [];
