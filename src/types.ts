@@ -7,13 +7,18 @@ export interface Worker {
   inviter_id: string; // 'me' или ID партнёра
   start_date: string;
   archived?: boolean;
+  archived_at?: string;
 }
 
 export interface Partner {
   id: string;
   number: number;
   full_name: string;
+  archived?: boolean;
+  archived_at?: string;
 }
+
+export type PaymentType = 'hourly' | 'volume';
 
 export interface WorkObject {
   id: string;
@@ -22,6 +27,9 @@ export interface WorkObject {
   direction: string;
   address: string;
   archived?: boolean;
+  archived_at?: string;
+  payment_type?: PaymentType;
+  volume_unit?: string;
 }
 
 export interface Shift {
@@ -38,6 +46,11 @@ export interface Shift {
   partner_share_override: number | null;
   review: string;
   comment: string;
+  // Оплата за объём
+  payment_type?: PaymentType;
+  volume_quantity?: number;
+  volume_unit?: string;
+  volume_rate?: number;
 }
 
 export interface PlanningEntry {
@@ -49,8 +62,10 @@ export interface PlanningEntry {
   confirmed: boolean;
 }
 
-export type Page = 'dashboard' | 'workers' | 'partners' | 'objects' | 'shifts' | 'statistics' | 'import' | 'calendar' | 'planning';
+export type Page = 'dashboard' | 'workers' | 'partners' | 'objects' | 'shifts' | 'statistics' | 'import' | 'calendar' | 'planning' | 'archive';
 
 export type SortDirection = 'asc' | 'desc' | null;
 
 export type Theme = 'light' | 'dark';
+
+export type DashboardMode = 'active' | 'all';

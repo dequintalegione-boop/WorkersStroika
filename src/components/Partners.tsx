@@ -1,11 +1,11 @@
 import { useState, useMemo } from 'react';
 import { useStore } from '../store';
 import { Partner, SortDirection } from '../types';
-import { Plus, Pencil, Trash2, X } from 'lucide-react';
+import { Plus, Pencil, Trash2, X, Archive } from 'lucide-react';
 import DetailModal from './DetailModal';
 
 export default function Partners() {
-  const { partners, workers, shifts, addPartner, updatePartner, deletePartner, calcPartnerShare, calcHours } = useStore();
+  const { partners, workers, shifts, addPartner, updatePartner, deletePartner, archivePartner, calcPartnerShare, calcHours } = useStore();
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [sortField, setSortField] = useState<string>('number');
@@ -57,7 +57,7 @@ export default function Partners() {
   };
 
   const stats = useMemo(() => {
-    let result = partners.map((p) => {
+    let result = partners.filter(p => !p.archived).map((p) => {
       const invitedWorkers = workers.filter((w) => w.inviter_id === p.id);
       const workerIds = invitedWorkers.map((w) => w.id);
       const partnerShifts = shifts.filter((s) => workerIds.includes(s.worker_id));
@@ -164,6 +164,7 @@ export default function Partners() {
                 <td className="px-4 py-2">
                   <div className="flex gap-1">
                     <button onClick={() => handleEdit(p)} className="p-1.5 hover:bg-blue-50 rounded text-blue-600"><Pencil size={16} /></button>
+                    <button onClick={() => { if (confirm('Архивировать партнёра? Связи сохранятся, но партнёр не будет отображаться в активных списках.')) archivePartner(p.id); }} className="p-1.5 hover:bg-yellow-50 rounded text-yellow-600" title="В архив"><Archive size={16} /></button>
                     <button onClick={() => handleDelete(p.id)} className="p-1.5 hover:bg-red-50 rounded text-red-600"><Trash2 size={16} /></button>
                   </div>
                 </td>

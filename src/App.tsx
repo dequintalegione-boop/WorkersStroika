@@ -10,6 +10,7 @@ import Statistics from './components/Statistics';
 import ImportExport from './components/ImportExport';
 import Calendar from './components/Calendar';
 import Planning from './components/Planning';
+import Archive from './components/Archive';
 import { Menu, X, Download, Sun, Moon } from 'lucide-react';
 import { useInstallPrompt } from './hooks/useInstallPrompt';
 import { useStore } from './store';
@@ -39,6 +40,7 @@ export default function App() {
       case 'import': return <ImportExport />;
       case 'calendar': return <Calendar />;
       case 'planning': return <Planning />;
+      case 'archive': return <Archive />;
       default: return <Dashboard />;
     }
   };
@@ -53,6 +55,7 @@ export default function App() {
     import: '💾 Данные',
     calendar: '📅 Календарь',
     planning: '📋 Планирование',
+    archive: '📦 Архив',
   };
 
   return (
