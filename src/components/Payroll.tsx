@@ -83,7 +83,7 @@ export default function Payroll() {
       return;
     }
     const accepted = confirm(
-      'Синхронизировать смены по сменам начиная с ' + fromDate + '?\n\n' +
+      'Обновить начисления по сменам начиная с ' + fromDate + '?\n\n' +
       'Новые начисления будут добавлены один раз. Суммы ранее созданных начислений обновятся по текущим данным смен. История выплат останется без изменений.\n\n' +
       'Смены до выбранной даты не затрагиваются.'
     );
@@ -128,7 +128,7 @@ export default function Payroll() {
   const methodLabel = (method: WorkerPaymentMethod) => method === 'cash' ? 'Наличные' : method === 'bank' ? 'Перевод' : 'Другое';
 
   return (
-    <div className="p-4 md:p-6 space-y-6 max-w-7xl mx-auto">
+    <div className="page-wrap payroll-page p-4 md:p-6 space-y-6 max-w-7xl mx-auto">
       <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3">
         <div>
           <h2 className="text-2xl font-bold text-gray-800">Зарплаты и выплаты</h2>
@@ -139,7 +139,7 @@ export default function Payroll() {
             <Plus size={17} /> Записать выплату
           </button>
           <button onClick={handleSync} className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-slate-800 text-white hover:bg-slate-700">
-            <RefreshCw size={17} /> Сформировать начисления
+            <RefreshCw size={17} /> Обновить начисления
           </button>
         </div>
       </div>

@@ -21,8 +21,13 @@ function formatMoney(n: number): string {
 }
 
 export default function Dashboard() {
-  const { shifts, workers, objects, partners, calcHours, calcPartnerShare, getWorker, getObject, getShiftSalary } = useStore();
+  const { shifts, workers, objects, partners, financeTransactions, payrollAccruals, calcHours, calcPartnerShare, getWorker, getObject, getShiftSalary } = useStore();
 
+  const paidTransactions = financeTransactions.filter(item => item.status === 'paid');
+  const pendingExpenses = financeTransactions.filter(item => item.status === 'planned' && item.type === 'expense').reduce((sum, item) => sum + item.amount, 0);
+  const receivedIncome = paidTransactions.filter(item => item.type === 'income').reduce((sum, item) => sum + item.amount, 0);
+  const paidExpenses = paidTransactions.filter(item => item.type === 'expense').reduce((sum, item) => sum + item.amount, 0);
+  const totalPayroll = payrollAccruals.reduce((sum, item) => sum + item.amount, 0);
   const today = format(new Date(), 'yyyy-MM-dd');
   const monthAgo = format(new Date(Date.now() - 30 * 86400000), 'yyyy-MM-dd');
   const [dateFrom, setDateFrom] = useState(monthAgo);
@@ -186,9 +191,9 @@ export default function Dashboard() {
   }, [filteredShifts]);
 
   return (
-    <div className="p-6 space-y-6 overflow-auto">
-      <div className="flex items-center justify-between flex-wrap gap-3">
-        <h2 className="text-2xl font-bold text-gray-800">📊 Дашборд</h2>
+    <div className="page-wrap dashboard-page p-4 md:p-6 space-y-6 max-w-7xl mx-auto">
+      <div className="dashboard-header flex items-center justify-between flex-wrap gap-3">
+        <div><p className="eyebrow text-xs uppercase tracking-[0.2em] text-violet-500 font-semibold">РАБОЧАЯ ПАНЕЛЬ</p><h2 className="text-2xl md:text-3xl font-bold text-gray-800 mt-1">Обзор деятельности</h2><p className="text-sm text-gray-500 mt-1">Рабочие, объекты и финансовые результаты в одном месте.</p></div>
         <div className="flex gap-3 items-center flex-wrap">
           <div className="flex border rounded-lg overflow-hidden">
             <button
@@ -214,7 +219,7 @@ export default function Dashboard() {
       </div>
 
       {/* KPI Cards */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+      <div className="dashboard-kpis grid grid-cols-2 md:grid-cols-4 xl:grid-cols-4 gap-3">
         <KpiCard title="Заработано мной" value={formatMoney(kpi.myNet)} color="blue" />
         <KpiCard title="Всего смен" value={kpi.totalShifts.toString()} color="green" />
         <KpiCard title="Отработано часов" value={formatMinutes(kpi.totalHours)} color="purple" />
@@ -223,10 +228,14 @@ export default function Dashboard() {
         <KpiCard title="Средний чек" value={formatMoney(kpi.avgCheck)} color="cyan" />
         <KpiCard title="Активных рабочих" value={kpi.activeWorkers.toString()} color="indigo" />
         <KpiCard title="Объектов в работе" value={kpi.activeObjects.toString()} color="pink" />
+        <KpiCard title="Начислено рабочим" value={formatMoney(totalPayroll)} color="purple" />
+        <KpiCard title="Ожидает оплаты" value={formatMoney(pendingExpenses)} color="orange" />
+        <KpiCard title="Получено по финансам" value={formatMoney(receivedIncome)} color="green" />
+        <KpiCard title="Оплаченные расходы" value={formatMoney(paidExpenses)} color="red" />
       </div>
 
       {/* Health indicators */}
-      <div className="bg-gray-50 rounded-xl p-4 border">
+      <div className="dashboard-health bg-gray-50 rounded-xl p-4 border">
         <h3 className="font-semibold text-gray-700 mb-2">🩺 Индикаторы здоровья</h3>
         <div className="flex gap-8 text-sm">
           <span>Средняя часовая ставка: <b>{formatMoney(kpi.avgHourlyRate)}</b>/час</span>
@@ -236,8 +245,8 @@ export default function Dashboard() {
       </div>
 
       {/* Charts */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <div className="bg-white rounded-xl border p-4 shadow-sm">
+      <div className="dashboard-chart-grid grid grid-cols-1 lg:grid-cols-2 gap-4">
+        <div className="dashboard-panel bg-white rounded-xl border p-4 shadow-sm">
           <h3 className="font-semibold text-gray-700 mb-3">📈 Динамика заработка по неделям</h3>
           <ResponsiveContainer width="100%" height={250}>
             <LineChart data={weeklyData}>
@@ -250,7 +259,7 @@ export default function Dashboard() {
           </ResponsiveContainer>
         </div>
 
-        <div className="bg-white rounded-xl border p-4 shadow-sm">
+        <div className="dashboard-panel bg-white rounded-xl border p-4 shadow-sm">
           <h3 className="font-semibold text-gray-700 mb-3">🏢 Топ-5 объектов по заработку</h3>
           <ResponsiveContainer width="100%" height={250}>
             <BarChart data={topObjects}>
@@ -263,7 +272,7 @@ export default function Dashboard() {
           </ResponsiveContainer>
         </div>
 
-        <div className="bg-white rounded-xl border p-4 shadow-sm">
+        <div className="dashboard-panel bg-white rounded-xl border p-4 shadow-sm">
           <h3 className="font-semibold text-gray-700 mb-3">🧭 Смены по направлениям</h3>
           <ResponsiveContainer width="100%" height={250}>
             <PieChart>
@@ -275,7 +284,7 @@ export default function Dashboard() {
           </ResponsiveContainer>
         </div>
 
-        <div className="bg-white rounded-xl border p-4 shadow-sm">
+        <div className="dashboard-panel bg-white rounded-xl border p-4 shadow-sm">
           <h3 className="font-semibold text-gray-700 mb-3">💰 Структура денег</h3>
           <ResponsiveContainer width="100%" height={250}>
             <PieChart>
@@ -290,8 +299,8 @@ export default function Dashboard() {
       </div>
 
       {/* Tables */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <div className="bg-white rounded-xl border p-4 shadow-sm">
+      <div className="dashboard-table-grid grid grid-cols-1 lg:grid-cols-2 gap-4">
+        <div className="dashboard-panel bg-white rounded-xl border p-4 shadow-sm">
           <h3 className="font-semibold text-gray-700 mb-3">🏆 Топ-5 рабочих за период</h3>
           <table className="w-full text-sm">
             <thead><tr className="border-b text-left text-gray-500">
@@ -311,7 +320,7 @@ export default function Dashboard() {
           </table>
         </div>
 
-        <div className="bg-white rounded-xl border p-4 shadow-sm">
+        <div className="dashboard-panel bg-white rounded-xl border p-4 shadow-sm">
           <h3 className="font-semibold text-gray-700 mb-3">🏗️ Активные объекты</h3>
           <table className="w-full text-sm">
             <thead><tr className="border-b text-left text-gray-500">
@@ -332,7 +341,7 @@ export default function Dashboard() {
           </table>
         </div>
 
-        <div className="bg-white rounded-xl border p-4 shadow-sm">
+        <div className="dashboard-panel bg-white rounded-xl border p-4 shadow-sm">
           <h3 className="font-semibold text-gray-700 mb-3">🤝 Топ-3 партнёров</h3>
           <table className="w-full text-sm">
             <thead><tr className="border-b text-left text-gray-500">
@@ -352,7 +361,7 @@ export default function Dashboard() {
           </table>
         </div>
 
-        <div className="bg-white rounded-xl border p-4 shadow-sm">
+        <div className="dashboard-panel bg-white rounded-xl border p-4 shadow-sm">
           <h3 className="font-semibold text-gray-700 mb-3">📋 Последние 5 смен</h3>
           <table className="w-full text-sm">
             <thead><tr className="border-b text-left text-gray-500">
@@ -392,7 +401,7 @@ function KpiCard({ title, value, color }: { title: string; value: string; color:
     pink: 'bg-pink-50 border-pink-200 text-pink-700',
   };
   return (
-    <div className={`rounded-xl border p-4 ${colorMap[color] || colorMap.blue}`}>
+    <div className={`dashboard-kpi kpi-${color} rounded-xl border p-4 ${colorMap[color] || colorMap.blue}`}>
       <p className="text-xs font-medium opacity-70">{title}</p>
       <p className="text-xl font-bold mt-1">{value}</p>
     </div>

@@ -100,7 +100,7 @@ export default function App() {
             <button onClick={() => setSidebarOpen(!sidebarOpen)} className="lg:hidden p-2 hover:bg-gray-100 rounded-lg">
               {sidebarOpen ? <X size={20} /> : <Menu size={20} />}
             </button>
-            <h1 className="text-lg font-semibold text-gray-700">
+            <h1 className="app-topbar-title text-lg font-semibold text-gray-700">
               {pageTitle[currentPage]}
             </h1>
           </div>
