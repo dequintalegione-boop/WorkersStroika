@@ -95,7 +95,7 @@ export default function App() {
             <button
               onClick={toggleTheme}
               className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition"
-              title={theme === 'light' ? 'Тёмная тема' : 'Светлая тема'}
+              title={theme === 'light' ? 'Современная тёмная тема' : theme === 'modern-dark' ? 'Классическая тёмная тема' : 'Светлая тема'}
             >
               {theme === 'light' ? <Moon size={20} className="text-gray-600" /> : <Sun size={20} className="text-yellow-400" />}
             </button>

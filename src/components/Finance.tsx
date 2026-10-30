@@ -159,7 +159,7 @@ export default function Finance() {
       </div>
 
       <section className="bg-white rounded-2xl border p-4 md:p-5 space-y-4">
-        <div className="flex items-center justify-between gap-2"><div><h3 className="font-semibold text-gray-800">Остатки по счетам</h3><p className="text-xs text-gray-500 mt-1">Считаются по оплаченным операциям с начала ведения журнала.</p></div><Wallet className="text-sky-500" size={20}/></div>
+        <div className="flex items-center justify-between gap-2"><div><h3 className="font-semibold text-gray-800">Остатки по счетам</h3><p className="text-xs text-gray-500 mt-1">Итог начального остатка и всех оплаченных операций.</p></div><Wallet className="text-sky-500" size={20}/></div>
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
           {accountOptions.map(account => <div key={account.value} className="rounded-xl border bg-gray-50 p-4"><p className="text-sm text-gray-500">{account.label}</p><p className={'text-xl font-semibold mt-1 ' + (balances[account.value] < 0 ? 'text-rose-600' : 'text-gray-800')}>{money(balances[account.value])}</p></div>)}
         </div>

@@ -339,8 +339,9 @@ export const useStore = create<AppState>()(
         const state = get();
         const shiftCount = state.shifts.filter(s => s.object_id === id).length;
         const planningCount = state.planning.filter(p => p.object_id === id).length;
-        if (shiftCount > 0 || planningCount > 0) {
-          return { success: false, error: `Нельзя удалить: ${shiftCount} смен, ${planningCount} записей планирования. Используйте архивирование.` };
+        const financeCount = state.financeTransactions.filter(t => t.object_id === id).length;
+        if (shiftCount > 0 || planningCount > 0 || financeCount > 0) {
+          return { success: false, error: `Нельзя удалить: ${shiftCount} смен, ${planningCount} записей планирования и ${financeCount} финансовых операций. Используйте архивирование.` };
         }
         set((s) => ({ objects: s.objects.filter(x => x.id !== id) }));
         return { success: true };
@@ -558,8 +559,7 @@ export const useStore = create<AppState>()(
           planning: state.planning,
           payrollAccruals: state.payrollAccruals,
           workerPayments: state.workerPayments,
-          financeTransactions: state.financeTransactions,
-          financeOpeningBalances: state.financeOpeningBalances
+          financeTransactions: state.financeTransactions
         });
       },
 
@@ -592,6 +592,9 @@ export const useStore = create<AppState>()(
           const normalizedPayrollAccruals = (data.payrollAccruals || []).map((a: any) => normalizeId(a, 'payrollAccrual'));
           const normalizedWorkerPayments = (data.workerPayments || []).map((p: any) => normalizeId(p, 'workerPayment'));
           const financeDataProvided = Array.isArray(data.financeTransactions);
+          if (!financeDataProvided && get().financeTransactions.some((t: FinanceTransaction) => t.source_type !== 'worker_payment')) {
+            warnings.push('Этот JSON создан до появления финансового журнала. Ручные доходы и расходы не войдут в импорт. Перед импортом текущая база автоматически сохраняется в отдельную резервную копию.');
+          }
           const normalizedFinanceTransactions = (financeDataProvided ? data.financeTransactions : []).map((t: any) => normalizeId(t, 'financeTransaction'));
           const openingInput = data.financeOpeningBalances && typeof data.financeOpeningBalances === 'object' ? data.financeOpeningBalances : {};
           const importedFinanceOpeningBalances: Record<FinanceAccount, number> = {
