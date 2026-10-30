@@ -73,6 +73,9 @@ export function checkIntegrity(state: { workers: Worker[]; partners: Partner[]; 
   if (new Set(state.shifts.map(s => s.id)).size !== state.shifts.length) {
     issues.push({ level: 'critical', entity: 'shifts', id: '-', message: 'Дублирующиеся ID смен' });
   }
+  if (new Set(state.planning.map(p => p.id)).size !== state.planning.length) {
+    issues.push({ level: 'critical', entity: 'planning', id: '-', message: 'Дублирующиеся ID планирования' });
+  }
 
   // Смены без рабочего
   state.shifts.forEach(s => {
@@ -84,11 +87,9 @@ export function checkIntegrity(state: { workers: Worker[]; partners: Partner[]; 
     }
     // Некорректная объёмная оплата
     if (s.payment_type === 'volume') {
-      if (s.volume_quantity == null || s.volume_rate == null) {
-        issues.push({ level: 'error', entity: 'shift', id: s.id, number: s.number, message: 'Объёмная смена без количества или цены' });
-      }
-      if (!s.volume_unit) {
-        issues.push({ level: 'warning', entity: 'shift', id: s.id, number: s.number, message: 'Объёмная смена без единицы измерения' });
+      const validation = validateVolumeShift(s);
+      if (!validation.valid) {
+        issues.push({ level: 'error', entity: 'shift', id: s.id, number: s.number, message: validation.error || 'Некорректная объёмная оплата' });
       }
     }
   });
@@ -105,8 +106,11 @@ export function checkIntegrity(state: { workers: Worker[]; partners: Partner[]; 
 
   // Рабочие с несуществующим партнёром
   state.workers.forEach(w => {
-    if (w.inviter_id && w.inviter_id !== 'me' && !partnerIds.has(w.inviter_id)) {
-      issues.push({ level: 'warning', entity: 'worker', id: w.id, number: w.number, message: `Рабочий ссылается на несуществующего партнёра (${(w as any).legacy_inviter_name || w.inviter_id})` });
+    const legacyName = (w as any).legacy_inviter_name || (w as any).inviter || '';
+    if (!w.inviter_id && legacyName) {
+      issues.push({ level: 'warning', entity: 'worker', id: w.id, number: w.number, message: `Не разрешена связь с партнёром: ${legacyName}` });
+    } else if (w.inviter_id && w.inviter_id !== 'me' && !partnerIds.has(w.inviter_id)) {
+      issues.push({ level: 'error', entity: 'worker', id: w.id, number: w.number, message: `Рабочий ссылается на несуществующего партнёра (${w.inviter_id})` });
     }
   });
 
@@ -140,7 +144,7 @@ interface AppState {
   // Shift CRUD
   addShift: (s: Omit<Shift, 'id'>) => { success: boolean; error?: string };
   addShifts: (shifts: Omit<Shift, 'id'>[]) => { success: boolean; error?: string };
-  updateShift: (id: string, s: UpdateData<Shift>) => void;
+  updateShift: (id: string, s: UpdateData<Shift>) => { success: boolean; error?: string };
   deleteShift: (id: string) => void;
 
   // Planning CRUD
@@ -270,21 +274,18 @@ export const useStore = create<AppState>()(
         return { success: true };
       },
       updateShift: (id, s) => {
-        // Если обновляется объёмная смена, пересчитываем salary
         const existing = get().shifts.find(sh => sh.id === id);
-        if (existing && (s.payment_type === 'volume' || existing.payment_type === 'volume')) {
-          const merged = { ...existing, ...s };
-          if (merged.payment_type === 'volume') {
-            merged.salary = calcShiftSalary(merged);
-          }
-          set((state) => ({
-            shifts: state.shifts.map((x) => x.id === id ? { ...merged, id: x.id } : x)
-          }));
-        } else {
-          set((state) => ({
-            shifts: state.shifts.map((x) => x.id === id ? { ...x, ...s, id: x.id } : x)
-          }));
+        if (!existing) return { success: false, error: 'Смена не найдена. Обновите список и попробуйте ещё раз.' };
+
+        const merged: Shift = { ...existing, ...s, id: existing.id };
+        if (merged.payment_type === 'volume') {
+          const validation = validateVolumeShift(merged);
+          if (!validation.valid) return { success: false, error: validation.error || 'Некорректные данные объёмной оплаты' };
+          merged.salary = calcShiftSalary(merged);
         }
+
+        set(state => ({ shifts: state.shifts.map(x => x.id === id ? merged : x) }));
+        return { success: true };
       },
       deleteShift: (id) => set((state) => ({
         shifts: state.shifts.filter((x) => x.id !== id)
@@ -404,8 +405,9 @@ export const useStore = create<AppState>()(
             return null;
           };
 
-          const dupError = checkUnique(normalizedWorkers, 'workers') || checkUnique(normalizedPartners, 'partners') || 
-                           checkUnique(normalizedObjects, 'objects') || checkUnique(normalizedShifts, 'shifts');
+          const dupError = checkUnique(normalizedWorkers, 'workers') || checkUnique(normalizedPartners, 'partners') ||
+                           checkUnique(normalizedObjects, 'objects') || checkUnique(normalizedShifts, 'shifts') ||
+                           checkUnique(normalizedPlanning, 'planning');
           if (dupError) {
             return { success: false, error: dupError };
           }
@@ -415,60 +417,139 @@ export const useStore = create<AppState>()(
           const objectIds = new Set(normalizedObjects.map((o: any) => o.id));
           const partnerIds = new Set(normalizedPartners.map((p: any) => p.id));
 
+          const linkErrors: string[] = [];
           normalizedShifts.forEach((s: any) => {
             if (!s.worker_id || !workerIds.has(s.worker_id)) {
-              warnings.push(`Смена #${s.number || '?'} ссылается на несуществующего рабочего`);
+              linkErrors.push(`Смена #${s.number || '?'} ссылается на несуществующего рабочего`);
             }
             if (s.object_id && !objectIds.has(s.object_id)) {
-              warnings.push(`Смена #${s.number || '?'} ссылается на несуществующий объект`);
+              linkErrors.push(`Смена #${s.number || '?'} ссылается на несуществующий объект`);
+            }
+            if (s.payment_type === 'volume') {
+              const validation = validateVolumeShift(s);
+              if (!validation.valid) linkErrors.push(`Смена #${s.number || '?'}: ${validation.error}`);
+              else s.salary = calcShiftSalary(s);
             }
           });
 
           normalizedPlanning.forEach((p: any) => {
             if (!p.worker_id || !workerIds.has(p.worker_id)) {
-              warnings.push(`Запись планирования ссылается на несуществующего рабочего`);
+              linkErrors.push('Запись планирования ссылается на несуществующего рабочего');
             }
             if (p.object_id && !objectIds.has(p.object_id)) {
-              warnings.push(`Запись планирования ссылается на несуществующий объект`);
+              linkErrors.push('Запись планирования ссылается на несуществующий объект');
             }
           });
+          if (linkErrors.length) {
+            return { success: false, error: linkErrors.slice(0, 20).join('\n') };
+          }
 
-          // Миграция inviter для старых данных
+          // Восстанавливаем старые связи по имени, в том числе если ошибочная миграция уже записала inviter_id="me".
+          const normalizeName = (value: string) => value.trim().toLocaleLowerCase('ru-RU');
           const migratedWorkers = normalizedWorkers.map((w: any) => {
-            // Если есть legacy inviter (строка), но нет inviter_id
-            if (w.inviter && !w.inviter_id) {
-              if (w.inviter === 'Я') {
-                return { ...w, inviter_id: 'me' };
-              }
-              // Ищем партнёра по имени
-              const matches = normalizedPartners.filter((p: any) => p.full_name === w.inviter);
+            const legacyName = (
+              typeof w.legacy_inviter_name === 'string' && w.legacy_inviter_name.trim()
+                ? w.legacy_inviter_name
+                : typeof w.inviter === 'string' ? w.inviter : ''
+            ).trim();
+            let inviterId = typeof w.inviter_id === 'string' ? w.inviter_id.trim() : '';
+
+            if ((!inviterId || inviterId === 'me') && legacyName && legacyName !== 'Я') {
+              const matches = normalizedPartners.filter((p: any) =>
+                typeof p.full_name === 'string' && normalizeName(p.full_name) === normalizeName(legacyName)
+              );
               if (matches.length === 1) {
-                return { ...w, inviter_id: matches[0].id };
-              } else if (matches.length > 1) {
-                // Неоднозначность — не выбираем случайного
-                warnings.push(`Рабочий "${w.full_name}": неоднозначное имя пригласившего "${w.inviter}" (${matches.length} совпадений)`);
-                return { ...w, inviter_id: '', legacy_inviter_name: w.inviter };
+                inviterId = matches[0].id;
               } else {
-                // Партнёр не найден — не подставляем 'me'
-                warnings.push(`Рабочий "${w.full_name}": партнёр "${w.inviter}" не найден`);
-                return { ...w, inviter_id: '', legacy_inviter_name: w.inviter };
+                warnings.push(`Рабочий "${w.full_name}": связь с партнёром "${legacyName}" требует ручного разрешения`);
+                return { ...w, inviter_id: '', legacy_inviter_name: legacyName };
               }
+            } else if (!inviterId && legacyName === 'Я') {
+              inviterId = 'me';
+            } else if (!inviterId && !legacyName) {
+              inviterId = 'me';
             }
-            // Если inviter_id ссылается на несуществующего партнёра
-            if (w.inviter_id && w.inviter_id !== 'me' && !partnerIds.has(w.inviter_id)) {
-              warnings.push(`Рабочий "${w.full_name}": inviter_id ссылается на несуществующего партнёра`);
-              return { ...w, legacy_inviter_name: w.inviter_id };
+
+            if (inviterId !== 'me' && !partnerIds.has(inviterId)) {
+              const unresolvedName = legacyName || inviterId;
+              warnings.push(`Рабочий "${w.full_name}": партнёр "${unresolvedName}" не найден`);
+              return { ...w, inviter_id: '', legacy_inviter_name: unresolvedName };
             }
-            return w;
+
+            return { ...w, inviter_id: inviterId, legacy_inviter_name: undefined };
           });
 
-          // Атомарное обновление
+          // Совместимость с экспортами старых версий: добавляем безопасные значения только необязательным полям.
+          const importedWorkers = migratedWorkers.map((w: any, i: number) => ({
+            ...w, number: w.number ?? i + 1, age: w.age ?? 0, phone: w.phone ?? '', start_date: w.start_date ?? ''
+          }));
+          const importedPartners = normalizedPartners.map((p: any, i: number) => ({
+            ...p, number: p.number ?? i + 1
+          }));
+          const importedObjects = normalizedObjects.map((o: any, i: number) => ({
+            ...o, number: o.number ?? i + 1, direction: o.direction ?? '', address: o.address ?? '',
+            payment_type: o.payment_type || 'hourly'
+          }));
+          const importedShifts = normalizedShifts.map((shift: any, i: number) => ({
+            ...shift, number: shift.number ?? i + 1, object_id: shift.object_id ?? '',
+            salary: shift.salary ?? 0, time_start: shift.time_start ?? '', time_end: shift.time_end ?? '',
+            hours_manual: shift.hours_manual ?? null, my_share: shift.my_share ?? 0,
+            partner_share_override: shift.partner_share_override ?? null,
+            review: shift.review ?? '', comment: shift.comment ?? '', payment_type: shift.payment_type || 'hourly'
+          }));
+          const importedPlanning = normalizedPlanning.map((p: any) => ({
+            ...p, object_id: p.object_id ?? '', note: p.note ?? '', confirmed: p.confirmed ?? false
+          }));
+
+          const fieldErrors: string[] = [];
+          const isText = (value: any) => typeof value === 'string';
+          const isFiniteNumber = (value: any) => typeof value === 'number' && Number.isFinite(value);
+
+          importedWorkers.forEach((w: any, i: number) => {
+            if (!isText(w.full_name) || !w.full_name.trim() || !isFiniteNumber(w.number) ||
+                !isFiniteNumber(w.age) || !isText(w.phone) || !isText(w.start_date) || !isText(w.inviter_id)) {
+              fieldErrors.push(`Рабочий №${i + 1}: некорректные обязательные поля`);
+            }
+          });
+          importedPartners.forEach((p: any, i: number) => {
+            if (!isText(p.full_name) || !p.full_name.trim() || !isFiniteNumber(p.number)) {
+              fieldErrors.push(`Партнёр №${i + 1}: некорректные обязательные поля`);
+            }
+          });
+          importedObjects.forEach((o: any, i: number) => {
+            if (!isText(o.name) || !o.name.trim() || !isFiniteNumber(o.number) ||
+                !isText(o.direction) || !isText(o.address) || !['hourly', 'volume'].includes(o.payment_type)) {
+              fieldErrors.push(`Объект №${i + 1}: некорректные обязательные поля`);
+            }
+          });
+          importedShifts.forEach((shift: any, i: number) => {
+            if (!isText(shift.date) || !isText(shift.worker_id) || !isText(shift.object_id) ||
+                !isFiniteNumber(shift.number) || !isFiniteNumber(shift.salary) || !isFiniteNumber(shift.my_share) ||
+                !(shift.hours_manual === null || isFiniteNumber(shift.hours_manual)) ||
+                !(shift.partner_share_override === null || isFiniteNumber(shift.partner_share_override)) ||
+                !isText(shift.time_start) || !isText(shift.time_end) ||
+                !isText(shift.review) || !isText(shift.comment) ||
+                !['hourly', 'volume'].includes(shift.payment_type)) {
+              fieldErrors.push(`Смена №${i + 1}: некорректные обязательные поля`);
+            }
+          });
+          importedPlanning.forEach((p: any, i: number) => {
+            if (!isText(p.date) || !isText(p.worker_id) || !isText(p.object_id) ||
+                !isText(p.note) || typeof p.confirmed !== 'boolean') {
+              fieldErrors.push(`Планирование №${i + 1}: некорректные обязательные поля`);
+            }
+          });
+          if (fieldErrors.length) {
+            return { success: false, error: fieldErrors.slice(0, 20).join('\\n') };
+          }
+
+          // Атомарное обновление: до этой строки состояние Store не менялось.
           set({
-            workers: migratedWorkers,
-            partners: normalizedPartners,
-            objects: normalizedObjects,
-            shifts: normalizedShifts,
-            planning: normalizedPlanning
+            workers: importedWorkers,
+            partners: importedPartners,
+            objects: importedObjects,
+            shifts: importedShifts,
+            planning: importedPlanning
           });
 
           return { success: true, warnings: warnings.length > 0 ? warnings : undefined };
@@ -489,7 +570,7 @@ export const useStore = create<AppState>()(
     }),
     { 
       name: 'brigade-tracker-storage',
-      version: 6,
+      version: 7,
       migrate: (persistedState: any, version: number) => {
         // v1 → v2: add planning
         if (version < 2) {
@@ -546,26 +627,38 @@ export const useStore = create<AppState>()(
             }));
           }
         }
-        // v5 → v6: исправление миграции inviter, которая ранее ставила 'me' при отсутствии партнёра
-        if (version < 6) {
-          if (persistedState.workers && persistedState.partners) {
-            const partnerIds = new Set(persistedState.partners.map((p: any) => p.id));
-            persistedState.workers = persistedState.workers.map((w: any) => {
-              // Если inviter_id установлен в 'me', но есть legacy_inviter_name — пытаемся восстановить
-              if (w.inviter_id === 'me' && w.legacy_inviter_name && w.legacy_inviter_name !== 'Я') {
-                const matches = persistedState.partners.filter((p: any) => p.full_name === w.legacy_inviter_name);
-                if (matches.length === 1) {
-                  return { ...w, inviter_id: matches[0].id };
-                }
-                // Если не удалось восстановить — оставляем как есть с предупреждением
-              }
-              // Если inviter_id ссылается на несуществующего партнёра
-              if (w.inviter_id && w.inviter_id !== 'me' && !partnerIds.has(w.inviter_id)) {
-                return { ...w, legacy_inviter_name: w.legacy_inviter_name || w.inviter_id, inviter_id: '' };
-              }
-              return w;
-            });
-          }
+        // v5 → v6: убираем ссылки на отсутствующие ID партнёров, не подменяя их на "me".
+        if (version < 6 && persistedState.workers && persistedState.partners) {
+          const partnerIds = new Set(persistedState.partners.map((p: any) => p.id));
+          persistedState.workers = persistedState.workers.map((w: any) => {
+            if (w.inviter_id && w.inviter_id !== 'me' && !partnerIds.has(w.inviter_id)) {
+              return { ...w, legacy_inviter_name: w.legacy_inviter_name || w.inviter_id, inviter_id: '' };
+            }
+            return w;
+          });
+        }
+        // v6 → v7: восстанавливаем ошибочные "me", если старое поле inviter содержит имя партнёра.
+        if (version < 7 && Array.isArray(persistedState.workers)) {
+          const partners = Array.isArray(persistedState.partners) ? persistedState.partners : [];
+          const normalizeName = (value: string) => value.trim().toLocaleLowerCase('ru-RU');
+          persistedState.workers = persistedState.workers.map((w: any) => {
+            const legacyName = (
+              typeof w.legacy_inviter_name === 'string' && w.legacy_inviter_name.trim()
+                ? w.legacy_inviter_name
+                : typeof w.inviter === 'string' ? w.inviter : ''
+            ).trim();
+            const inviterId = typeof w.inviter_id === 'string' ? w.inviter_id : '';
+            if ((!inviterId || inviterId === 'me') && legacyName && legacyName !== 'Я') {
+              const matches = partners.filter((p: any) =>
+                typeof p.full_name === 'string' && normalizeName(p.full_name) === normalizeName(legacyName)
+              );
+              if (matches.length === 1) return { ...w, inviter_id: matches[0].id, legacy_inviter_name: undefined };
+              return { ...w, inviter_id: '', legacy_inviter_name: legacyName };
+            }
+            if (!inviterId && legacyName === 'Я') return { ...w, inviter_id: 'me', legacy_inviter_name: undefined };
+            if (!inviterId && !legacyName) return { ...w, inviter_id: 'me' };
+            return { ...w, inviter_id: inviterId };
+          });
         }
         return persistedState;
       }

@@ -1,10 +1,11 @@
-import { useRef } from 'react';
+import { useRef, useState } from 'react';
 import { useStore } from '../store';
 import { Download, Upload, FileJson } from 'lucide-react';
 
 export default function ImportExport() {
-  const { exportData, importData, workers, partners, objects, shifts, getInviterName } = useStore();
+  const { exportData, importData, workers, partners, objects, shifts, getInviterName, getShiftSalary, runIntegrityCheck } = useStore();
   const fileRef = useRef<HTMLInputElement>(null);
+  const [integrityIssues, setIntegrityIssues] = useState<ReturnType<typeof runIntegrityCheck> | null>(null);
 
   const handleExport = () => {
     const data = exportData();
@@ -26,8 +27,15 @@ export default function ImportExport() {
         const data = JSON.parse(ev.target?.result as string);
         if (data.workers && data.partners && data.objects && data.shifts) {
           if (confirm(`Импортировать данные? Рабочих: ${data.workers.length}, Партнёров: ${data.partners.length}, Объектов: ${data.objects.length}, Смен: ${data.shifts.length}. Текущие данные будут ЗАМЕНЕНЫ.`)) {
-            // Создаём резервную копию перед импортом
-            const backup = exportData();
+            // Скачиваем резервную копию до попытки замены данных.
+            const backupBlob = new Blob([exportData()], { type: 'application/json' });
+            const backupUrl = URL.createObjectURL(backupBlob);
+            const backupLink = document.createElement('a');
+            backupLink.href = backupUrl;
+            backupLink.download = `brigade-tracker-backup-before-import-${new Date().toISOString().replace(/[:.]/g, '-')}.json`;
+            backupLink.click();
+            window.setTimeout(() => URL.revokeObjectURL(backupUrl), 1000);
+
             const result = importData(data);
             if (result.success) {
               let message = 'Данные успешно импортированы!';
@@ -35,14 +43,9 @@ export default function ImportExport() {
                 message += '\n\nПредупреждения:\n' + result.warnings.join('\n');
               }
               alert(message);
+              setIntegrityIssues(null);
             } else {
-              alert('Ошибка импорта: ' + result.error + '\n\nРезервная копия сохранена. Текущие данные не изменены.');
-              // Восстанавливаем из резервной копии (на случай если что-то пошло не так)
-              try {
-                importData(JSON.parse(backup));
-              } catch (e) {
-                console.error('Не удалось восстановить из резервной копии', e);
-              }
+              alert('Импорт отменён: ' + result.error + '\nТекущие данные не изменены. Резервная копия скачана.');
             }
           }
         } else {
@@ -56,33 +59,39 @@ export default function ImportExport() {
     if (fileRef.current) fileRef.current.value = '';
   };
 
-  // CSV export for Google Sheets compatibility
+  // CSV export for Google Sheets compatibility. Quote every cell safely.
   const handleExportCSV = () => {
-    const csvContent = [
-      '=== РАБОЧИЕ ===',
-      '№,ФИО,Возраст,Телефон,Кто пригласил,Дата начала',
-      ...workers.map((w) => `${w.number},"${w.full_name}",${w.age},"${w.phone}","${getInviterName(w.inviter_id)}",${w.start_date}`),
-      '',
-      '=== ПАРТНЁРЫ ===',
-      '№,ФИО',
-      ...partners.map((p) => `${p.number},"${p.full_name}"`),
-      '',
-      '=== ОБЪЕКТЫ ===',
-      '№,Название,Направление,Адрес',
-      ...objects.map((o) => `${o.number},"${o.name}","${o.direction}","${o.address}"`),
-      '',
-      '=== СМЕНЫ ===',
-      '№,Дата,Рабочий_ID,Объект_ID,Зарплата,Начало,Конец,Часы(мин),Моя доля,Доля партнёра,Отзыв,Комментарий',
-      ...shifts.map((s) => `${s.number},${s.date},${s.worker_id},${s.object_id},${s.salary},${s.time_start},${s.time_end},${s.hours_manual || ''},${s.my_share},${s.partner_share_override ?? ''},"${s.review}","${s.comment}"`)
-    ].join('\n');
-
+    const csvCell = (value: unknown) => `"${String(value ?? '').replace(/"/g, '""')}"`;
+    const rows: unknown[][] = [
+      ['=== РАБОЧИЕ ==='],
+      ['№', 'ФИО', 'Возраст', 'Телефон', 'Кто пригласил', 'Дата начала'],
+      ...workers.map(w => [w.number, w.full_name, w.age, w.phone, getInviterName(w.inviter_id), w.start_date]),
+      [],
+      ['=== ПАРТНЁРЫ ==='],
+      ['№', 'ФИО'],
+      ...partners.map(p => [p.number, p.full_name]),
+      [],
+      ['=== ОБЪЕКТЫ ==='],
+      ['№', 'Название', 'Направление', 'Адрес', 'Тип оплаты', 'Единица объёма'],
+      ...objects.map(o => [o.number, o.name, o.direction, o.address, o.payment_type || 'hourly', o.volume_unit || '']),
+      [],
+      ['=== СМЕНЫ ==='],
+      ['№', 'Дата', 'Рабочий_ID', 'Объект_ID', 'Тип оплаты', 'Объём', 'Единица измерения', 'Цена за единицу', 'Зарплата', 'Начало', 'Конец', 'Часы(мин)', 'Моя доля', 'Доля партнёра', 'Отзыв', 'Комментарий'],
+      ...shifts.map(s => [
+        s.number, s.date, s.worker_id, s.object_id, s.payment_type || 'hourly',
+        s.volume_quantity ?? '', s.volume_unit ?? '', s.volume_rate ?? '',
+        getShiftSalary(s), s.time_start, s.time_end, s.hours_manual ?? '',
+        s.my_share, s.partner_share_override ?? '', s.review, s.comment
+      ])
+    ];
+    const csvContent = rows.map(row => row.map(csvCell).join(',')).join('\r\n');
     const blob = new Blob(['\uFEFF' + csvContent], { type: 'text/csv;charset=utf-8' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
     a.download = `brigade-tracker-${new Date().toISOString().split('T')[0]}.csv`;
     a.click();
-    URL.revokeObjectURL(url);
+    window.setTimeout(() => URL.revokeObjectURL(url), 1000);
   };
 
   return (
@@ -147,12 +156,47 @@ export default function ImportExport() {
         </div>
       </div>
 
+      <div className="bg-white rounded-xl border p-6 shadow-sm space-y-3">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <h3 className="font-semibold text-gray-800">Проверка целостности данных</h3>
+            <p className="text-sm text-gray-500">Поиск отсутствующих связей, дублирующихся ID и некорректных объёмных смен.</p>
+          </div>
+          <button onClick={() => setIntegrityIssues(runIntegrityCheck())}
+            className="bg-slate-800 text-white px-4 py-2 rounded-lg hover:bg-slate-700 transition">
+            Проверить данные
+          </button>
+        </div>
+        {integrityIssues !== null && (
+          integrityIssues.length === 0 ? (
+            <p className="text-sm text-green-700 bg-green-50 rounded-lg p-3">Проблем не обнаружено.</p>
+          ) : (
+            <div className="space-y-2">
+              <p className="text-sm font-medium text-orange-700">Найдено проблем: {integrityIssues.length}</p>
+              <div className="max-h-80 overflow-auto divide-y rounded-lg border">
+                {integrityIssues.map((issue, index) => (
+                  <div key={`${issue.entity}-${issue.id}-${index}`} className="p-3 text-sm">
+                    <div className="flex flex-wrap gap-2 items-center">
+                      <span className={`text-xs font-semibold uppercase ${issue.level === 'critical' ? 'text-red-700' : issue.level === 'error' ? 'text-orange-700' : 'text-yellow-700'}`}>{issue.level}</span>
+                      <span className="text-gray-500">{issue.entity}</span>
+                      <span className="text-gray-400">ID: {issue.id}</span>
+                      {issue.number !== undefined && <span className="text-gray-400">№ {issue.number}</span>}
+                    </div>
+                    <p className="mt-1 text-gray-800">{issue.message}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )
+        )}
+      </div>
+
       <div className="bg-yellow-50 border border-yellow-200 rounded-xl p-4">
         <h4 className="font-semibold text-yellow-800 mb-2">⚠️ Миграция из Google Sheets</h4>
         <p className="text-sm text-yellow-700">
-          Для переноса данных из Google Sheets: экспортируйте каждый лист в CSV, затем загрузите данные через JSON-файл.
-          Структура JSON должна содержать массивы: <code className="bg-yellow-100 px-1 rounded">workers</code>, <code className="bg-yellow-100 px-1 rounded">partners</code>, <code className="bg-yellow-100 px-1 rounded">objects</code>, <code className="bg-yellow-100 px-1 rounded">shifts</code>.
-          Связи восстанавливаются по именам при первом импорте, далее система работает на ID.
+          Для восстановления используйте резервную копию JSON из приложения. CSV предназначен для просмотра и обработки в Google Sheets / Excel, но не является файлом восстановления.
+          JSON должен содержать массивы <code className="bg-yellow-100 px-1 rounded">workers</code>, <code className="bg-yellow-100 px-1 rounded">partners</code>, <code className="bg-yellow-100 px-1 rounded">objects</code> и <code className="bg-yellow-100 px-1 rounded">shifts</code>; массив <code className="bg-yellow-100 px-1 rounded">planning</code> необязателен для старых резервных копий.
+          Перед импортом приложение скачивает резервную копию текущих данных и проверяет связи и типы полей.
         </p>
       </div>
 

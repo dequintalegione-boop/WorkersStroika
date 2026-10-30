@@ -43,7 +43,9 @@ export default function Dashboard() {
         if (!worker) return false;
         // Exclude archived workers
         if (worker.archived) return false;
-        // Exclude archived objects (but include shifts without object)
+        // Смена с указанным, но отсутствующим объектом не считается активной.
+        if (s.object_id && !obj) return false;
+        // Смены без объекта разрешены; архивные объекты исключаются.
         if (obj?.archived) return false;
       }
       return true;

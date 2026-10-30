@@ -36,10 +36,10 @@ export default function Partners() {
   };
 
   const handleDelete = (id: string) => {
+    const partner = partners.find(p => p.id === id);
+    if (!partner || !confirm(`Удалить партнёра «${partner.full_name}»? Это действие нельзя отменить. Для сохранения связей лучше использовать архив.`)) return;
     const result = deletePartner(id);
-    if (!result.success) {
-      alert(result.error);
-    }
+    if (!result.success) alert(result.error);
   };
 
   const toggleSort = (field: string) => {
