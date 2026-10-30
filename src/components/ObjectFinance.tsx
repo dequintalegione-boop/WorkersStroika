@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { useStore } from '../store';
-import { CalendarDays, Search, TrendingDown, TrendingUp, Wallet, Building2, ArrowDownLeft, CircleAlert } from 'lucide-react';
+import { CalendarDays, Search, TrendingDown, TrendingUp, Wallet, Building2, ArrowDownLeft, AlertCircle } from 'lucide-react';
 
 function money(value: number) {
   return new Intl.NumberFormat('ru-RU', { style:'currency', currency:'RUB', maximumFractionDigits:0 }).format(value);
