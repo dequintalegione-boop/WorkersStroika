@@ -11,6 +11,7 @@ import ImportExport from './components/ImportExport';
 import Calendar from './components/Calendar';
 import Planning from './components/Planning';
 import Archive from './components/Archive';
+import Settings from './components/Settings';
 import { Menu, X, Download, Sun, Moon } from 'lucide-react';
 import { useInstallPrompt } from './hooks/useInstallPrompt';
 import { useStore } from './store';
@@ -19,15 +20,16 @@ export default function App() {
   const [currentPage, setCurrentPage] = useState<Page>('dashboard');
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const { isInstallable, isInstalled, install } = useInstallPrompt();
-  const { theme, setTheme } = useStore();
+  const { theme, setTheme, appModules } = useStore();
   const isLocalVersion = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
 
   useEffect(() => {
-    document.documentElement.classList.toggle('dark', theme === 'dark');
+    document.documentElement.classList.toggle('dark', theme === 'dark' || theme === 'modern-dark');
+    document.documentElement.classList.toggle('modern-dark', theme === 'modern-dark');
   }, [theme]);
 
   const toggleTheme = () => {
-    setTheme(theme === 'light' ? 'dark' : 'light');
+    setTheme(theme === 'light' ? 'modern-dark' : theme === 'modern-dark' ? 'dark' : 'light');
   };
 
   const renderPage = () => {
@@ -42,6 +44,7 @@ export default function App() {
       case 'calendar': return <Calendar />;
       case 'planning': return <Planning />;
       case 'archive': return <Archive />;
+      case 'settings': return <Settings />;
       default: return <Dashboard />;
     }
   };
@@ -57,6 +60,7 @@ export default function App() {
     calendar: '📅 Календарь',
     planning: '📋 Планирование',
     archive: '📦 Архив',
+    settings: '⚙️ Настройки',
   };
 
   return (
@@ -68,7 +72,7 @@ export default function App() {
       <div className={`fixed lg:static inset-y-0 left-0 z-50 transform transition-transform duration-200 ${
         sidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'
       }`}>
-        <Sidebar currentPage={currentPage} onNavigate={(page) => { setCurrentPage(page); setSidebarOpen(false); }} />
+        <Sidebar currentPage={currentPage} enabledModules={appModules} onNavigate={(page) => { setCurrentPage(page); setSidebarOpen(false); }} />
       </div>
 
       <div className="flex-1 flex flex-col min-w-0 overflow-hidden">

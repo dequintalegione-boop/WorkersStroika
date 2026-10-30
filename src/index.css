@@ -110,3 +110,30 @@
 * {
   transition: background-color 0.2s ease, border-color 0.2s ease, color 0.15s ease;
 }
+
+
+/* Modern graphite theme */
+.modern-dark { color-scheme: dark; --bg-primary:#0b1120; --bg-secondary:#111c2f; --text-primary:#e7edf7; --text-secondary:#9aa9bd; --border-color:#26354b; background:#0b1120; color:#e7edf7; }
+.modern-dark body { background:#0b1120; color:#e7edf7; }
+.modern-dark .bg-white { background:#111c2f !important; }
+.modern-dark .bg-gray-100 { background:#0b1120 !important; }
+.modern-dark .bg-gray-50 { background:#162238 !important; }
+.modern-dark .text-gray-900,.modern-dark .text-gray-800,.modern-dark .text-gray-700 { color:#e7edf7 !important; }
+.modern-dark .text-gray-600,.modern-dark .text-gray-500 { color:#9aa9bd !important; }
+.modern-dark .border,.modern-dark .border-b,.modern-dark .border-t { border-color:#26354b !important; }
+.modern-dark input,.modern-dark select,.modern-dark textarea { background:#0d1728 !important; border-color:#30435d !important; color:#e7edf7 !important; }
+.modern-dark input::placeholder,.modern-dark textarea::placeholder { color:#8495ad !important; }
+.modern-dark aside { background:#080e1a !important; }
+.modern-dark header { background:#111c2f !important; border-color:#26354b !important; }
+.modern-dark .bg-blue-50,.modern-dark .bg-blue-100 { background:#142e4c !important; }
+.modern-dark .bg-green-50,.modern-dark .bg-green-100 { background:#12352f !important; }
+.modern-dark .bg-yellow-50,.modern-dark .bg-yellow-100 { background:#3a3218 !important; }
+.modern-dark .bg-red-50,.modern-dark .bg-red-100 { background:#3b2028 !important; }
+.modern-dark .bg-purple-50 { background:#2c2345 !important; }
+.modern-dark .bg-orange-50 { background:#3b2a1b !important; }
+.modern-dark .bg-cyan-50 { background:#15353e !important; }
+.modern-dark .bg-indigo-50 { background:#20284a !important; }
+.modern-dark .bg-pink-50 { background:#3b2034 !important; }
+.modern-dark tr:hover { background:#17263d !important; }
+.modern-dark ::-webkit-scrollbar-track { background:#0b1120; }
+.modern-dark ::-webkit-scrollbar-thumb { background:#30435d; border-radius:5px; }

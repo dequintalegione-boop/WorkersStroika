@@ -62,10 +62,12 @@ export interface PlanningEntry {
   confirmed: boolean;
 }
 
-export type Page = 'dashboard' | 'workers' | 'partners' | 'objects' | 'shifts' | 'statistics' | 'import' | 'calendar' | 'planning' | 'archive';
+export type Page = 'dashboard' | 'workers' | 'partners' | 'objects' | 'shifts' | 'statistics' | 'import' | 'calendar' | 'planning' | 'archive' | 'settings';
 
 export type SortDirection = 'asc' | 'desc' | null;
 
-export type Theme = 'light' | 'dark';
+export type Theme = 'light' | 'dark' | 'modern-dark';
+
+export type ModuleKey = 'dashboard' | 'calendar' | 'planning' | 'workers' | 'partners' | 'objects' | 'shifts' | 'statistics' | 'archive' | 'import';
 
 export type DashboardMode = 'active' | 'all';

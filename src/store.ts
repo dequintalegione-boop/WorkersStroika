@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { v4 as uuidv4 } from 'uuid';
-import { Worker, Partner, WorkObject, Shift, PlanningEntry, Theme, PaymentType } from './types';
+import { Worker, Partner, WorkObject, Shift, PlanningEntry, Theme, PaymentType, ModuleKey } from './types';
 
 // Единая функция расчёта зарплаты за смену
 export function calcShiftSalary(shift: Shift | Omit<Shift, 'id'>): number {
@@ -117,6 +117,11 @@ export function checkIntegrity(state: { workers: Worker[]; partners: Partner[]; 
   return issues;
 }
 
+const DEFAULT_MODULES: Record<ModuleKey, boolean> = {
+  dashboard: true, calendar: true, planning: true, workers: true, partners: true,
+  objects: true, shifts: true, statistics: true, archive: true, import: true
+};
+
 interface AppState {
   workers: Worker[];
   partners: Partner[];
@@ -125,6 +130,8 @@ interface AppState {
   planning: PlanningEntry[];
   theme: Theme;
   setTheme: (theme: Theme) => void;
+  appModules: Record<ModuleKey, boolean>;
+  setModuleEnabled: (module: ModuleKey, enabled: boolean) => void;
 
   // Worker CRUD
   addWorker: (w: Omit<Worker, 'id'>) => void;
@@ -195,6 +202,8 @@ export const useStore = create<AppState>()(
       planning: [],
       theme: 'light' as Theme,
       setTheme: (theme) => set({ theme }),
+      appModules: { ...DEFAULT_MODULES },
+      setModuleEnabled: (module, enabled) => set((state) => ({ appModules: { ...state.appModules, [module]: enabled } })),
 
       addWorker: (w) => set((state) => ({
         workers: [...state.workers, { ...w, id: uuidv4() }]
@@ -570,8 +579,10 @@ export const useStore = create<AppState>()(
     }),
     { 
       name: 'brigade-tracker-storage',
-      version: 7,
+      version: 8,
       migrate: (persistedState: any, version: number) => {
+        // v7 → v8: preferences for visible modules. Existing data is preserved.
+        if (version < 8) persistedState.appModules = { ...DEFAULT_MODULES, ...(persistedState.appModules || {}) };
         // v1 → v2: add planning
         if (version < 2) {
           persistedState.planning = persistedState.planning || [];

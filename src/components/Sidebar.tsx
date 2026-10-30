@@ -1,9 +1,10 @@
-import { Page } from '../types';
+import { ModuleKey, Page } from '../types';
 import { LayoutDashboard, Users, UserCheck, MapPin, Calendar, BarChart3, Database, CalendarDays, ClipboardList, Archive } from 'lucide-react';
 
 interface SidebarProps {
   currentPage: Page;
   onNavigate: (page: Page) => void;
+  enabledModules: Record<ModuleKey, boolean>;
 }
 
 const menuItems: { page: Page; label: string; icon: React.ReactNode }[] = [
@@ -19,7 +20,8 @@ const menuItems: { page: Page; label: string; icon: React.ReactNode }[] = [
   { page: 'import', label: 'Данные', icon: <Database size={20} /> },
 ];
 
-export default function Sidebar({ currentPage, onNavigate }: SidebarProps) {
+export default function Sidebar({ currentPage, onNavigate, enabledModules }: SidebarProps) {
+  const visibleItems = menuItems.filter((item) => enabledModules[item.page as ModuleKey]);
   return (
     <aside className="w-64 bg-gray-900 text-white min-h-screen flex flex-col shadow-xl">
       <div className="p-5 border-b border-gray-700">
@@ -27,7 +29,7 @@ export default function Sidebar({ currentPage, onNavigate }: SidebarProps) {
         <p className="text-xs text-gray-400 mt-1">Учёт рабочих бригад</p>
       </div>
       <nav className="flex-1 p-3 overflow-y-auto">
-        {menuItems.map((item) => (
+        {visibleItems.map((item) => (
           <button
             key={item.page}
             onClick={() => onNavigate(item.page)}
@@ -42,6 +44,11 @@ export default function Sidebar({ currentPage, onNavigate }: SidebarProps) {
           </button>
         ))}
       </nav>
+      <div className="p-3 border-t border-gray-700">
+        <button onClick={() => onNavigate('settings')} className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg text-left transition-all ${currentPage === 'settings' ? 'bg-blue-600 text-white' : 'text-gray-300 hover:bg-gray-800 hover:text-white'}`}>
+          <span>⚙️</span><span className="font-medium">Настройки</span>
+        </button>
+      </div>
       <div className="p-4 border-t border-gray-700 text-xs text-gray-500">
         <p>Данные хранятся в браузере</p>
       </div>
