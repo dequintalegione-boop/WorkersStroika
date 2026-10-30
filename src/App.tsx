@@ -14,6 +14,7 @@ import Archive from './components/Archive';
 import Settings from './components/Settings';
 import Payroll from './components/Payroll';
 import Finance from './components/Finance';
+import ObjectFinance from './components/ObjectFinance';
 import { Menu, X, Download, Sun, Moon } from 'lucide-react';
 import { useInstallPrompt } from './hooks/useInstallPrompt';
 import { useStore } from './store';
@@ -49,6 +50,7 @@ export default function App() {
       case 'settings': return <Settings />;
       case 'payroll': return <Payroll />;
       case 'finance': return <Finance />;
+      case 'object-finance': return <ObjectFinance />;
       default: return <Dashboard />;
     }
   };
@@ -67,22 +69,23 @@ export default function App() {
     settings: '⚙️ Настройки',
     payroll: '💵 Зарплаты и выплаты',
     finance: '💼 Финансы',
+    'object-finance': '📊 Прибыль объектов',
   };
 
   return (
-    <div className="flex h-screen bg-gray-100">
+    <div className={`app-shell flex h-screen bg-gray-100 ${theme === "modern-dark" ? "premium-layout" : ""}`}>
       {sidebarOpen && (
         <div className="fixed inset-0 bg-black/50 z-40 lg:hidden" onClick={() => setSidebarOpen(false)} />
       )}
 
-      <div className={`fixed lg:static inset-y-0 left-0 z-50 transform transition-transform duration-200 ${
+      <div className={`app-sidebar-wrap fixed lg:static inset-y-0 left-0 z-50 transform transition-transform duration-200 ${
         sidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'
       }`}>
         <Sidebar currentPage={currentPage} enabledModules={appModules} onNavigate={(page) => { setCurrentPage(page); setSidebarOpen(false); }} />
       </div>
 
       <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
-        <header className="bg-white border-b px-4 py-3 flex items-center justify-between shadow-sm">
+        <header className="app-topbar bg-white border-b px-4 py-3 flex items-center justify-between shadow-sm">
           <div className="flex items-center gap-3">
             <button onClick={() => setSidebarOpen(!sidebarOpen)} className="lg:hidden p-2 hover:bg-gray-100 rounded-lg">
               {sidebarOpen ? <X size={20} /> : <Menu size={20} />}
@@ -114,7 +117,7 @@ export default function App() {
           </div>
         </header>
 
-        <main className="flex-1 overflow-auto">
+        <main className="app-main flex-1 overflow-auto">
           {renderPage()}
         </main>
       </div>

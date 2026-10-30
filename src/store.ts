@@ -192,7 +192,7 @@ function normalizeFinanceTransaction(transaction: FinanceTransactionInput): Fina
 
 const DEFAULT_MODULES: Record<ModuleKey, boolean> = {
   dashboard: true, calendar: true, planning: true, workers: true, partners: true,
-  objects: true, shifts: true, statistics: true, archive: true, import: true, payroll: true, finance: true
+  objects: true, shifts: true, statistics: true, archive: true, import: true, payroll: true, finance: true, 'object-finance': true
 };
 
 interface AppState {
@@ -216,6 +216,7 @@ interface AppState {
   updateFinanceTransaction: (id: string, transaction: FinanceTransactionInput) => { success: boolean; error?: string };
   deleteFinanceTransaction: (id: string) => { success: boolean; error?: string };
   setFinanceOpeningBalance: (account: FinanceAccount, amount: number) => void;
+  markFinanceTransactionPaid: (id: string) => { success: boolean; error?: string };
 
   // Worker CRUD
   addWorker: (w: Omit<Worker, 'id'>) => void;
@@ -509,6 +510,18 @@ export const useStore = create<AppState>()(
       setFinanceOpeningBalance: (account, amount) => {
         if (!FINANCE_ACCOUNTS.includes(account) || !Number.isFinite(amount)) return;
         set(state => ({ financeOpeningBalances: { ...state.financeOpeningBalances, [account]: Math.round(amount * 100) / 100 } }));
+      },
+      markFinanceTransactionPaid: (id) => {
+        const existing = get().financeTransactions.find(t => t.id === id);
+        if (!existing) return { success: false, error: 'Операция не найдена. Обновите список.' };
+        if (existing.status === 'paid') return { success: false, error: 'Эта операция уже отмечена как оплаченная.' };
+        if (existing.source_type === 'worker_payment') return { success: false, error: 'Статус выплаты рабочего изменяется в разделе зарплат.' };
+        set(state => ({
+          financeTransactions: state.financeTransactions.map(t =>
+            t.id === id ? { ...t, status: 'paid', updated_at: new Date().toISOString() } : t
+          )
+        }));
+        return { success: true };
       },
 
       getWorker: (id) => get().workers.find((w) => w.id === id),
@@ -849,8 +862,10 @@ export const useStore = create<AppState>()(
     }),
     { 
       name: 'brigade-tracker-storage',
-      version: 11,
+      version: 12,
       migrate: (persistedState: any, version: number) => {
+        // v11 → v12: add object profitability menu without overwriting user module preferences.
+        if (version < 12) persistedState.appModules = { ...DEFAULT_MODULES, ...(persistedState.appModules || {}) };
         // v10 → v11: store opening balances separately from income and expenses.
         if (version < 11) {
           persistedState.financeOpeningBalances = { cash: 0, bank: 0, other: 0, ...(persistedState.financeOpeningBalances || {}) };

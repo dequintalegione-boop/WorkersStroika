@@ -113,12 +113,12 @@ export interface FinanceTransaction {
 
 export type FinanceTransactionInput = Omit<FinanceTransaction, 'id' | 'created_at' | 'updated_at' | 'source_type' | 'source_id'>;
 
-export type Page = 'dashboard' | 'workers' | 'partners' | 'objects' | 'shifts' | 'statistics' | 'import' | 'calendar' | 'planning' | 'archive' | 'settings' | 'payroll' | 'finance';
+export type Page = 'dashboard' | 'workers' | 'partners' | 'objects' | 'shifts' | 'statistics' | 'import' | 'calendar' | 'planning' | 'archive' | 'settings' | 'payroll' | 'finance' | 'object-finance';
 
 export type SortDirection = 'asc' | 'desc' | null;
 
 export type Theme = 'light' | 'dark' | 'modern-dark';
 
-export type ModuleKey = 'dashboard' | 'calendar' | 'planning' | 'workers' | 'partners' | 'objects' | 'shifts' | 'statistics' | 'archive' | 'import' | 'payroll' | 'finance';
+export type ModuleKey = 'dashboard' | 'calendar' | 'planning' | 'workers' | 'partners' | 'objects' | 'shifts' | 'statistics' | 'archive' | 'import' | 'payroll' | 'finance' | 'object-finance';
 
 export type DashboardMode = 'active' | 'all';

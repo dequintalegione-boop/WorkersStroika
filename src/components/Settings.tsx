@@ -14,7 +14,8 @@ const moduleItems: { key: ModuleKey; title: string; description: string }[] = [
   { key:'archive', title:'Архив', description:'Архивные сотрудники, партнёры и объекты' },
   { key:'import', title:'Данные и резервные копии', description:'Импорт, экспорт и проверка целостности' },
   { key:'payroll', title:'Зарплаты и выплаты', description:'Начисления по сменам, авансы, выплаты и баланс сотрудников' },
-  { key:'finance', title:'Финансы', description:'Доходы, расходы, переводы, остатки и движение денег' }
+  { key:'finance', title:'Финансы', description:'Доходы, расходы, переводы, остатки и движение денег' },
+  { key:'object-finance', title:'Прибыль объектов', description:'Доходы, расходы, зарплаты и рентабельность по каждому объекту' }
 ];
 const themes: { key:Theme; title:string; description:string; preview:string }[] = [
   { key:'light', title:'Светлая', description:'Существующее светлое оформление', preview:'bg-slate-100' },

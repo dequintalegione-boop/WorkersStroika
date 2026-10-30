@@ -1,5 +1,6 @@
 import { ModuleKey, Page } from '../types';
-import { LayoutDashboard, Users, UserCheck, MapPin, Calendar, BarChart3, Database, CalendarDays, ClipboardList, Archive, DollarSign, Wallet } from 'lucide-react';
+import { useStore } from '../store';
+import { LayoutDashboard, Users, UserCheck, MapPin, Calendar, BarChart3, Database, CalendarDays, ClipboardList, Archive, DollarSign, Wallet, TrendingUp, Building2 } from 'lucide-react';
 
 interface SidebarProps {
   currentPage: Page;
@@ -17,29 +18,38 @@ const menuItems: { page: Page; label: string; icon: React.ReactNode }[] = [
   { page: 'shifts', label: 'Смены', icon: <Calendar size={20} /> },
   { page: 'payroll', label: 'Зарплаты', icon: <DollarSign size={20} /> },
   { page: 'finance', label: 'Финансы', icon: <Wallet size={20} /> },
+  { page: 'object-finance', label: 'Прибыль объектов', icon: <TrendingUp size={20} /> },
   { page: 'statistics', label: 'Статистика', icon: <BarChart3 size={20} /> },
   { page: 'archive', label: 'Архив', icon: <Archive size={20} /> },
   { page: 'import', label: 'Данные', icon: <Database size={20} /> },
 ];
 
 export default function Sidebar({ currentPage, onNavigate, enabledModules }: SidebarProps) {
-  const visibleItems = menuItems.filter((item) => enabledModules[item.page as ModuleKey]);
+  const visibleItems = menuItems.filter(item => enabledModules[item.page as ModuleKey]);
+  const modern = useStore(state => state.theme === 'modern-dark');
+
   return (
-    <aside className="w-64 bg-gray-900 text-white min-h-screen flex flex-col shadow-xl">
-      <div className="p-5 border-b border-gray-700">
-        <h1 className="text-xl font-bold text-blue-400">🏗️ БригадаУчёт</h1>
-        <p className="text-xs text-gray-400 mt-1">Учёт рабочих бригад</p>
+    <aside className={modern ? 'app-sidebar app-sidebar-premium w-64 bg-gray-900 text-white min-h-screen flex flex-col shadow-xl' : 'app-sidebar w-64 bg-gray-900 text-white min-h-screen flex flex-col shadow-xl'}>
+      <div className="sidebar-brand p-5 border-b border-gray-700">
+        {modern ? (
+          <div className="sidebar-brand-inner">
+            <div className="sidebar-brand-symbol"><Building2 size={30} strokeWidth={1.7} /></div>
+            <h1 className="sidebar-brand-title">Бригада<span>Учёт</span></h1>
+            <p className="sidebar-brand-caption">CONSTRUCTION WORKSPACE</p>
+          </div>
+        ) : (
+          <>
+            <h1 className="text-xl font-bold text-blue-400">🏗️ БригадаУчёт</h1>
+            <p className="text-xs text-gray-400 mt-1">Учёт рабочих бригад</p>
+          </>
+        )}
       </div>
       <nav className="flex-1 p-3 overflow-y-auto">
-        {visibleItems.map((item) => (
+        {visibleItems.map(item => (
           <button
             key={item.page}
             onClick={() => onNavigate(item.page)}
-            className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg mb-1 transition-all text-left ${
-              currentPage === item.page
-                ? 'bg-blue-600 text-white shadow-lg'
-                : 'text-gray-300 hover:bg-gray-800 hover:text-white'
-            }`}
+            className={(modern ? 'sidebar-link ' : '') + 'w-full flex items-center gap-3 px-4 py-3 rounded-lg mb-1 transition-all text-left ' + (currentPage === item.page ? 'bg-blue-600 text-white shadow-lg' : 'text-gray-300 hover:bg-gray-800 hover:text-white')}
           >
             {item.icon}
             <span className="font-medium">{item.label}</span>
@@ -47,7 +57,7 @@ export default function Sidebar({ currentPage, onNavigate, enabledModules }: Sid
         ))}
       </nav>
       <div className="p-3 border-t border-gray-700">
-        <button onClick={() => onNavigate('settings')} className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg text-left transition-all ${currentPage === 'settings' ? 'bg-blue-600 text-white' : 'text-gray-300 hover:bg-gray-800 hover:text-white'}`}>
+        <button onClick={() => onNavigate('settings')} className={(modern ? 'sidebar-settings-link ' : '') + 'w-full flex items-center gap-3 px-4 py-3 rounded-lg text-left transition-all ' + (currentPage === 'settings' ? 'bg-blue-600 text-white' : 'text-gray-300 hover:bg-gray-800 hover:text-white')}>
           <span>⚙️</span><span className="font-medium">Настройки</span>
         </button>
       </div>
