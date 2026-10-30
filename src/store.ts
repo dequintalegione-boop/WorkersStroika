@@ -233,17 +233,28 @@ function syncPayrollLedger(
     }
   });
 
-  // Payments and advances cover the oldest outstanding accruals for the same worker first.
+  // Payments linked to a specific shift settle that accrual first.
+  // Unlinked manual payments and advances are then allocated to the oldest remaining debt.
+  const targetedPayments = new Map<string, number>();
   const paidRemaining = new Map<string, number>();
   payments.forEach(payment => {
-    paidRemaining.set(payment.worker_id, (paidRemaining.get(payment.worker_id) || 0) + payment.amount);
+    const target = payment.accrual_id
+      ? accruals.find(accrual => accrual.id === payment.accrual_id && accrual.worker_id === payment.worker_id)
+      : undefined;
+    if (target) {
+      targetedPayments.set(target.id, (targetedPayments.get(target.id) || 0) + payment.amount);
+    } else {
+      paidRemaining.set(payment.worker_id, (paidRemaining.get(payment.worker_id) || 0) + payment.amount);
+    }
   });
   const outstanding = new Map<string, number>();
   const ordered = [...accruals].sort((a, b) => a.date.localeCompare(b.date) || a.created_at.localeCompare(b.created_at));
   ordered.forEach(accrual => {
+    const targeted = targetedPayments.get(accrual.id) || 0;
+    const beforeGeneric = Math.max(0, Math.round((accrual.amount - targeted) * 100) / 100);
     const available = paidRemaining.get(accrual.worker_id) || 0;
-    const applied = Math.min(accrual.amount, available);
-    outstanding.set(accrual.id, Math.round((accrual.amount - applied) * 100) / 100);
+    const applied = Math.min(beforeGeneric, available);
+    outstanding.set(accrual.id, Math.max(0, Math.round((beforeGeneric - applied) * 100) / 100));
     paidRemaining.set(accrual.worker_id, Math.max(0, Math.round((available - applied) * 100) / 100));
   });
 
@@ -615,6 +626,7 @@ export const useStore = create<AppState>()(
             id: uuidv4(), worker_id: accrual.worker_id, date: paidDate,
             amount: existing.amount, kind: 'salary',
             method: existing.account || 'cash',
+            accrual_id: accrual.id,
             comment: 'Оплата начисления за смену',
             created_at: now
           };

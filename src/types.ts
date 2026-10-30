@@ -85,6 +85,7 @@ export interface WorkerPayment {
   method: WorkerPaymentMethod;
   comment: string;
   created_at: string;
+  accrual_id?: string;
 }
 
 export type FinanceType = 'income' | 'expense' | 'transfer';
