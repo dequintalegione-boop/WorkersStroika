@@ -5,7 +5,7 @@ import { ru } from 'date-fns/locale';
 import { ChevronLeft, ChevronRight, Filter } from 'lucide-react';
 
 export default function Calendar() {
-  const { shifts, workers, objects, getWorker, getObject } = useStore();
+  const { shifts, workers, objects, getWorker, getObject, getShiftSalary } = useStore();
   const [currentDate, setCurrentDate] = useState(new Date());
   const [selectedDay, setSelectedDay] = useState<Date | null>(null);
   const [filterWorker, setFilterWorker] = useState('');
@@ -163,7 +163,7 @@ export default function Calendar() {
                         <td className="px-3 py-2 text-xs">
                           {s.time_start && s.time_end ? `${s.time_start}–${s.time_end}` : '—'}
                         </td>
-                        <td className="px-3 py-2">{s.salary} ₽</td>
+                        <td className="px-3 py-2">{getShiftSalary(s)} ₽</td>
                         <td className="px-3 py-2 text-blue-600">{s.my_share} ₽</td>
                       </tr>
                     );

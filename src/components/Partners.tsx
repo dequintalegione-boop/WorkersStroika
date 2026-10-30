@@ -36,9 +36,9 @@ export default function Partners() {
   };
 
   const handleDelete = (id: string) => {
-    const partner = partners.find((p) => p.id === id);
-    if (confirm(`Удалить партнёра "${partner?.full_name}"? Рабочие, которых он привёл, останутся.`)) {
-      deletePartner(id);
+    const result = deletePartner(id);
+    if (!result.success) {
+      alert(result.error);
     }
   };
 

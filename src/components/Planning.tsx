@@ -218,7 +218,11 @@ export default function Planning() {
                 <select value={form.worker_id} onChange={(e) => setForm({ ...form, worker_id: e.target.value })}
                   className="w-full border rounded-lg px-3 py-2">
                   <option value="">Выберите рабочего</option>
-                  {workers.filter(w => !w.archived).map((w) => <option key={w.id} value={w.id}>{w.full_name}</option>)}
+                  {workers.filter(w => !w.archived || w.id === form.worker_id).map((w) => (
+                    <option key={w.id} value={w.id}>
+                      {w.full_name}{w.archived ? ' (в архиве)' : ''}
+                    </option>
+                  ))}
                 </select>
               </div>
               <div>
@@ -226,7 +230,11 @@ export default function Planning() {
                 <select value={form.object_id} onChange={(e) => setForm({ ...form, object_id: e.target.value })}
                   className="w-full border rounded-lg px-3 py-2">
                   <option value="">Не указан</option>
-                  {objects.filter(o => !o.archived).map((o) => <option key={o.id} value={o.id}>{o.name}</option>)}
+                  {objects.filter(o => !o.archived || o.id === form.object_id).map((o) => (
+                    <option key={o.id} value={o.id}>
+                      {o.name}{o.archived ? ' (в архиве)' : ''}
+                    </option>
+                  ))}
                 </select>
               </div>
               <div>

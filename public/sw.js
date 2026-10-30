@@ -1,3 +1,9 @@
+const CACHE_NAME = 'brigade-tracker-v2';
+const urlsToCache = [
+  '/',
+  '/index.html',
+  '/manifest.json'
+];
 const CACHE_NAME = "brigade-tracker-v2";
 
 self.addEventListener("install", () => {

@@ -26,8 +26,24 @@ export default function ImportExport() {
         const data = JSON.parse(ev.target?.result as string);
         if (data.workers && data.partners && data.objects && data.shifts) {
           if (confirm(`Импортировать данные? Рабочих: ${data.workers.length}, Партнёров: ${data.partners.length}, Объектов: ${data.objects.length}, Смен: ${data.shifts.length}. Текущие данные будут ЗАМЕНЕНЫ.`)) {
-            importData(data);
-            alert('Данные успешно импортированы!');
+            // Создаём резервную копию перед импортом
+            const backup = exportData();
+            const result = importData(data);
+            if (result.success) {
+              let message = 'Данные успешно импортированы!';
+              if (result.warnings && result.warnings.length > 0) {
+                message += '\n\nПредупреждения:\n' + result.warnings.join('\n');
+              }
+              alert(message);
+            } else {
+              alert('Ошибка импорта: ' + result.error + '\n\nРезервная копия сохранена. Текущие данные не изменены.');
+              // Восстанавливаем из резервной копии (на случай если что-то пошло не так)
+              try {
+                importData(JSON.parse(backup));
+              } catch (e) {
+                console.error('Не удалось восстановить из резервной копии', e);
+              }
+            }
           }
         } else {
           alert('Неверный формат файла. Ожидался JSON с workers, partners, objects, shifts.');

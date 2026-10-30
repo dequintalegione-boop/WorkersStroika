@@ -39,8 +39,10 @@ export default function Dashboard() {
       if (dashboardMode === 'active') {
         const worker = getWorker(s.worker_id);
         const obj = s.object_id ? getObject(s.object_id) : null;
+        // Exclude shifts with missing worker
+        if (!worker) return false;
         // Exclude archived workers
-        if (worker?.archived) return false;
+        if (worker.archived) return false;
         // Exclude archived objects (but include shifts without object)
         if (obj?.archived) return false;
       }
@@ -66,14 +68,16 @@ export default function Dashboard() {
 
   // Weekly dynamics
   const weeklyData = useMemo(() => {
-    const weeks: Record<string, { week: string; earned: number }> = {};
+    const weeks: Record<string, { week: string; weekKey: string; earned: number }> = {};
     filteredShifts.forEach((s) => {
       const d = parseISO(s.date);
-      const wk = format(startOfWeek(d, { locale: ru }), 'dd.MM');
-      if (!weeks[wk]) weeks[wk] = { week: wk, earned: 0 };
-      weeks[wk].earned += s.my_share - calcPartnerShare(s);
+      const weekStart = startOfWeek(d, { locale: ru });
+      const weekKey = format(weekStart, 'yyyy-MM-dd'); // ISO для сортировки
+      const weekLabel = format(weekStart, 'dd.MM'); // Отображение
+      if (!weeks[weekKey]) weeks[weekKey] = { week: weekLabel, weekKey, earned: 0 };
+      weeks[weekKey].earned += s.my_share - calcPartnerShare(s);
     });
-    return Object.values(weeks).sort((a, b) => a.week.localeCompare(b.week));
+    return Object.values(weeks).sort((a, b) => a.weekKey.localeCompare(b.weekKey));
   }, [filteredShifts, calcPartnerShare]);
 
   // Top objects
@@ -146,6 +150,8 @@ export default function Dashboard() {
     const partnerWorkers = new Map<string, string[]>();
     workers.forEach((w) => {
       if (w.inviter_id && w.inviter_id !== 'me') {
+        // В режиме "Активные" не включаем архивных рабочих
+        if (dashboardMode === 'active' && w.archived) return;
         if (!partnerWorkers.has(w.inviter_id)) partnerWorkers.set(w.inviter_id, []);
         partnerWorkers.get(w.inviter_id)!.push(w.id);
       }
@@ -156,18 +162,21 @@ export default function Dashboard() {
       if (!partner) return;
       const inPeriod = workerIds.filter((wid) => {
         const w = getWorker(wid);
-        return w && w.start_date >= dateFrom && w.start_date <= dateTo;
+        if (!w) return false;
+        // В режиме "Активные" не включаем архивных рабочих
+        if (dashboardMode === 'active' && w.archived) return false;
+        return w.start_date >= dateFrom && w.start_date <= dateTo;
       });
       const shiftsInPeriod = filteredShifts.filter((s) => workerIds.includes(s.worker_id));
       result.push({
-        name: partner.full_name,
+        name: partner.full_name + (partner.archived ? ' (архив)' : ''),
         invited: inPeriod.length,
         shifts: shiftsInPeriod.length,
         partnerEarn: shiftsInPeriod.reduce((sum, s) => sum + calcPartnerShare(s), 0)
       });
     });
     return result.sort((a, b) => b.invited - a.invited).slice(0, 3);
-  }, [workers, partners, filteredShifts, calcPartnerShare, getWorker, dateFrom, dateTo]);
+  }, [workers, partners, filteredShifts, calcPartnerShare, getWorker, dateFrom, dateTo, dashboardMode]);
 
   // Last 5 shifts
   const lastShifts = useMemo(() => {

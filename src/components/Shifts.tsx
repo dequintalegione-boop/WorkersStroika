@@ -27,7 +27,7 @@ export default function Shifts() {
   const {
     shifts, workers, objects, partners,
     addShift, addShifts, updateShift, deleteShift,
-    getObject, getWorker, calcHours, calcPartnerShare
+    getObject, getWorker, calcHours, calcPartnerShare, getShiftSalary
   } = useStore();
 
   const [showForm, setShowForm] = useState(false);
@@ -110,6 +110,11 @@ export default function Shifts() {
     if (!form.date) return;
 
     if (multiMode) {
+      // Запрет массового создания объёмных смен
+      if (form.payment_type === 'volume') {
+        alert('Массовое создание объёмных смен запрещено. Каждый рабочий должен иметь индивидуальный объём.');
+        return;
+      }
       if (selectedWorkers.length === 0) return;
       const newShifts: Omit<Shift, 'id'>[] = selectedWorkers.map((wid, idx) => {
         const salary = individualSalaries ? (workerSalaries[wid] || 0) : form.salary;
@@ -120,7 +125,11 @@ export default function Shifts() {
           salary,
         };
       });
-      addShifts(newShifts);
+      const result = addShifts(newShifts);
+      if (!result.success) {
+        alert(result.error);
+        return;
+      }
     } else {
       if (!form.worker_id) return;
       const shiftData = {
@@ -130,7 +139,11 @@ export default function Shifts() {
       if (editingId) {
         updateShift(editingId, shiftData);
       } else {
-        addShift(shiftData);
+        const result = addShift(shiftData);
+        if (!result.success) {
+          alert(result.error);
+          return;
+        }
       }
     }
     resetForm();
@@ -170,7 +183,7 @@ export default function Shifts() {
           case 'date': aVal = a.date; bVal = b.date; break;
           case 'worker': aVal = getWorker(a.worker_id)?.full_name || ''; bVal = getWorker(b.worker_id)?.full_name || ''; break;
           case 'object': aVal = a.object_id ? getObject(a.object_id)?.name || '' : ''; bVal = b.object_id ? getObject(b.object_id)?.name || '' : ''; break;
-          case 'salary': aVal = a.salary; bVal = b.salary; break;
+          case 'salary': aVal = getShiftSalary(a); bVal = getShiftSalary(b); break;
           case 'hours': aVal = calcHours(a); bVal = calcHours(b); break;
           case 'my_share': aVal = a.my_share; bVal = b.my_share; break;
           default: aVal = a.date; bVal = b.date;
@@ -319,7 +332,11 @@ export default function Shifts() {
                   <select value={form.worker_id} onChange={(e) => setForm({ ...form, worker_id: e.target.value })}
                     className="w-full border rounded-lg px-3 py-2">
                     <option value="">Выберите рабочего</option>
-                    {workers.filter(w => !w.archived).map((w) => <option key={w.id} value={w.id}>{w.full_name}</option>)}
+                    {workers.filter(w => !w.archived || w.id === (editingId ? shifts.find(s => s.id === editingId)?.worker_id : '')).map((w) => (
+                      <option key={w.id} value={w.id}>
+                        {w.full_name}{w.archived ? ' (в архиве)' : ''}
+                      </option>
+                    ))}
                   </select>
                 </div>
               )}
@@ -329,16 +346,43 @@ export default function Shifts() {
                 <select value={form.object_id} onChange={(e) => {
                   const objId = e.target.value;
                   const obj = objId ? objects.find(o => o.id === objId) : null;
+                  const newPaymentType = obj?.payment_type || 'hourly';
+                  
+                  // Если переключаемся на объёмный объект — отключаем массовый режим
+                  let newMultiMode = multiMode;
+                  let newSelectedWorkers = selectedWorkers;
+                  let newWorkerSalaries = workerSalaries;
+                  let newIndividualSalaries = individualSalaries;
+                  
+                  if (newPaymentType === 'volume' && multiMode) {
+                    newMultiMode = false;
+                    newSelectedWorkers = [];
+                    newWorkerSalaries = {};
+                    newIndividualSalaries = false;
+                    alert('Массовое создание смен недоступно для объектов с оплатой за объём. Каждый рабочий должен иметь индивидуальный объём.');
+                  }
+                  
                   setForm({ 
                     ...form, 
                     object_id: objId,
-                    payment_type: obj?.payment_type || 'hourly',
-                    volume_unit: obj?.volume_unit || form.volume_unit || ''
+                    payment_type: newPaymentType,
+                    volume_unit: obj?.volume_unit || '',
+                    volume_quantity: undefined,
+                    volume_rate: undefined,
+                    salary: newPaymentType === 'volume' ? 0 : form.salary
                   });
+                  setMultiMode(newMultiMode);
+                  setSelectedWorkers(newSelectedWorkers);
+                  setWorkerSalaries(newWorkerSalaries);
+                  setIndividualSalaries(newIndividualSalaries);
                 }}
                   className="w-full border rounded-lg px-3 py-2">
                   <option value="">Без объекта</option>
-                  {objects.filter(o => !o.archived).map((o) => <option key={o.id} value={o.id}>{o.name}</option>)}
+                  {objects.filter(o => !o.archived || o.id === form.object_id).map((o) => (
+                    <option key={o.id} value={o.id}>
+                      {o.name}{o.archived ? ' (в архиве)' : ''}
+                    </option>
+                  ))}
                 </select>
                 {selectedObj && (
                   <p className="text-xs text-gray-500 mt-1">
@@ -525,7 +569,7 @@ export default function Shifts() {
                   </td>
                   <td className="px-3 py-2">{o?.name || '—'}</td>
                   <td className="px-3 py-2 text-gray-500 text-xs">{o?.direction || ''}</td>
-                  <td className="px-3 py-2">{formatMoney(s.salary)}</td>
+                  <td className="px-3 py-2">{formatMoney(getShiftSalary(s))}</td>
                   <td className="px-3 py-2 text-xs">{s.time_start && s.time_end ? `${s.time_start}–${s.time_end}` : '—'}</td>
                   <td className="px-3 py-2">{formatMinutes(calcHours(s))}</td>
                   <td className="px-3 py-2 font-medium text-blue-600">{formatMoney(s.my_share)}</td>
