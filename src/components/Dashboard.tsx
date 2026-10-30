@@ -23,16 +23,17 @@ function formatMoney(n: number): string {
 export default function Dashboard() {
   const { shifts, workers, objects, partners, financeTransactions, payrollAccruals, calcHours, calcPartnerShare, getWorker, getObject, getShiftSalary } = useStore();
 
-  const paidTransactions = financeTransactions.filter(item => item.status === 'paid');
-  const pendingExpenses = financeTransactions.filter(item => item.status === 'planned' && item.type === 'expense').reduce((sum, item) => sum + item.amount, 0);
-  const receivedIncome = paidTransactions.filter(item => item.type === 'income').reduce((sum, item) => sum + item.amount, 0);
-  const paidExpenses = paidTransactions.filter(item => item.type === 'expense').reduce((sum, item) => sum + item.amount, 0);
-  const totalPayroll = payrollAccruals.reduce((sum, item) => sum + item.amount, 0);
   const today = format(new Date(), 'yyyy-MM-dd');
   const monthAgo = format(new Date(Date.now() - 30 * 86400000), 'yyyy-MM-dd');
   const [dateFrom, setDateFrom] = useState(monthAgo);
   const [dateTo, setDateTo] = useState(today);
   const [dashboardMode, setDashboardMode] = useState<DashboardMode>('active');
+  const periodTransactions = financeTransactions.filter(item => item.date >= dateFrom && item.date <= dateTo);
+  const paidTransactions = periodTransactions.filter(item => item.status === 'paid');
+  const pendingExpenses = periodTransactions.filter(item => item.status === 'planned' && item.type === 'expense').reduce((sum, item) => sum + item.amount, 0);
+  const receivedIncome = paidTransactions.filter(item => item.type === 'income').reduce((sum, item) => sum + item.amount, 0);
+  const paidExpenses = paidTransactions.filter(item => item.type === 'expense').reduce((sum, item) => sum + item.amount, 0);
+  const totalPayroll = payrollAccruals.filter(item => item.date >= dateFrom && item.date <= dateTo).reduce((sum, item) => sum + item.amount, 0);
 
   const filteredShifts = useMemo(() => {
     if (!dateFrom || !dateTo) return [];
@@ -228,10 +229,10 @@ export default function Dashboard() {
         <KpiCard title="Средний чек" value={formatMoney(kpi.avgCheck)} color="cyan" />
         <KpiCard title="Активных рабочих" value={kpi.activeWorkers.toString()} color="indigo" />
         <KpiCard title="Объектов в работе" value={kpi.activeObjects.toString()} color="pink" />
-        <KpiCard title="Начислено рабочим" value={formatMoney(totalPayroll)} color="purple" />
-        <KpiCard title="Ожидает оплаты" value={formatMoney(pendingExpenses)} color="orange" />
-        <KpiCard title="Получено по финансам" value={formatMoney(receivedIncome)} color="green" />
-        <KpiCard title="Оплаченные расходы" value={formatMoney(paidExpenses)} color="red" />
+        <KpiCard title="Начислено рабочим за период" value={formatMoney(totalPayroll)} color="purple" />
+        <KpiCard title="К оплате за период" value={formatMoney(pendingExpenses)} color="orange" />
+        <KpiCard title="Получено за период" value={formatMoney(receivedIncome)} color="green" />
+        <KpiCard title="Расходы за период" value={formatMoney(paidExpenses)} color="red" />
       </div>
 
       {/* Health indicators */}

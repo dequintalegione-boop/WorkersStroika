@@ -78,18 +78,14 @@ export default function Payroll() {
   }, 0);
 
   const handleSync = () => {
-    if (!fromDate) {
-      alert('Укажите дату, начиная с которой учитывать смены.');
-      return;
-    }
+    const period = fromDate ? 'начиная с ' + fromDate : 'по всем сменам';
     const accepted = confirm(
-      'Обновить начисления по сменам начиная с ' + fromDate + '?\n\n' +
-      'Новые начисления будут добавлены один раз. Суммы ранее созданных начислений обновятся по текущим данным смен. История выплат останется без изменений.\n\n' +
-      'Смены до выбранной даты не затрагиваются.'
+      'Проверить и обновить начисления ' + period + '?\\n\\n' +
+      'Новые начисления будут добавлены один раз. Суммы изменённых смен обновятся, а выплаты и авансы будут учтены автоматически. Дубликаты не создаются.'
     );
     if (!accepted) return;
     const result = syncPayrollAccruals(fromDate);
-    alert('Готово. Новых начислений: ' + result.created + '. Обновлено: ' + result.updated + '. Пропущено смен без положительной суммы: ' + result.skipped + '.');
+    alert('Готово. Новых начислений: ' + result.created + '. Обновлено: ' + result.updated + '. Смен без положительной суммы: ' + result.skipped + '.');
   };
 
   const openPaymentForm = (workerId = '') => {
@@ -139,7 +135,7 @@ export default function Payroll() {
             <Plus size={17} /> Записать выплату
           </button>
           <button onClick={handleSync} className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-slate-800 text-white hover:bg-slate-700">
-            <RefreshCw size={17} /> Обновить начисления
+            <RefreshCw size={17} /> Сверить начисления
           </button>
         </div>
       </div>
