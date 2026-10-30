@@ -5,7 +5,7 @@ import { Plus, Pencil, Trash2, X, Search, Archive } from 'lucide-react';
 import DetailModal from './DetailModal';
 
 export default function Workers() {
-  const { workers, partners, addWorker, updateWorker, deleteWorker, archiveWorker, shifts, calcHours, getInviterName } = useStore();
+  const { workers, partners, addWorker, updateWorker, deleteWorker, archiveWorker, shifts, calcHours, getInviterName, getShiftSalary } = useStore();
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [search, setSearch] = useState('');
@@ -40,8 +40,9 @@ export default function Workers() {
   };
 
   const handleDelete = (id: string) => {
-    if (confirm('Удалить рабочего? Связанные смены останутся.')) {
-      deleteWorker(id);
+    const result = deleteWorker(id);
+    if (!result.success) {
+      alert(result.error);
     }
   };
 
@@ -75,7 +76,7 @@ export default function Workers() {
           case 'inviter': aVal = getInviterName(a.inviter_id); bVal = getInviterName(b.inviter_id); break;
           case 'start_date': aVal = a.start_date; bVal = b.start_date; break;
           case 'shifts': aVal = shifts.filter((s) => s.worker_id === a.id).length; bVal = shifts.filter((s) => s.worker_id === b.id).length; break;
-          case 'earned': aVal = shifts.filter((s) => s.worker_id === a.id).reduce((sum, s) => sum + s.salary, 0); bVal = shifts.filter((s) => s.worker_id === b.id).reduce((sum, s) => sum + s.salary, 0); break;
+          case 'earned': aVal = shifts.filter((s) => s.worker_id === a.id).reduce((sum, s) => sum + getShiftSalary(s), 0); bVal = shifts.filter((s) => s.worker_id === b.id).reduce((sum, s) => sum + getShiftSalary(s), 0); break;
           default: aVal = a.number; bVal = b.number;
         }
         if (typeof aVal === 'string') {
@@ -93,7 +94,7 @@ export default function Workers() {
     return {
       shifts: ws.length,
       hours: ws.reduce((sum, s) => sum + calcHours(s), 0),
-      earned: ws.reduce((sum, s) => sum + s.salary, 0)
+      earned: ws.reduce((sum, s) => sum + getShiftSalary(s), 0)
     };
   };
 
@@ -148,7 +149,11 @@ export default function Workers() {
                 <select value={form.inviter_id} onChange={(e) => setForm({ ...form, inviter_id: e.target.value })}
                   className="w-full border rounded-lg px-3 py-2">
                   <option value="me">Я</option>
-                  {partners.map((p) => <option key={p.id} value={p.id}>{p.full_name}</option>)}
+                  {partners.filter(p => !p.archived || p.id === (editingId ? workers.find(w => w.id === editingId)?.inviter_id : '')).map((p) => (
+                    <option key={p.id} value={p.id}>
+                      {p.full_name}{p.archived ? ' (в архиве)' : ''}
+                    </option>
+                  ))}
                 </select>
               </div>
               <div>

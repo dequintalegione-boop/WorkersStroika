@@ -19,7 +19,7 @@ function formatMoney(n: number): string {
 }
 
 export default function DetailModal({ type, id, onClose }: DetailModalProps) {
-  const { workers, partners, objects, shifts, calcHours, calcPartnerShare, getWorker, getObject, getInviterName } = useStore();
+  const { workers, partners, objects, shifts, calcHours, calcPartnerShare, getWorker, getObject, getInviterName, getShiftSalary } = useStore();
 
   const data = useMemo(() => {
     if (type === 'worker') {
@@ -27,7 +27,7 @@ export default function DetailModal({ type, id, onClose }: DetailModalProps) {
       if (!worker) return null;
       const workerShifts = shifts.filter((s) => s.worker_id === id);
       const totalHours = workerShifts.reduce((sum, s) => sum + calcHours(s), 0);
-      const totalSalary = workerShifts.reduce((sum, s) => sum + s.salary, 0);
+      const totalSalary = workerShifts.reduce((sum, s) => sum + getShiftSalary(s), 0);
       const objectsWorked = new Set(workerShifts.filter((s) => s.object_id).map((s) => s.object_id));
       const avgSalary = workerShifts.length > 0 ? totalSalary / workerShifts.length : 0;
       const avgHourlyRate = totalHours > 0 ? totalSalary / (totalHours / 60) : 0;
@@ -97,7 +97,7 @@ export default function DetailModal({ type, id, onClose }: DetailModalProps) {
       if (!obj) return null;
       const objShifts = shifts.filter((s) => s.object_id === id);
       const totalHours = objShifts.reduce((sum, s) => sum + calcHours(s), 0);
-      const totalSalary = objShifts.reduce((sum, s) => sum + s.salary, 0);
+      const totalSalary = objShifts.reduce((sum, s) => sum + getShiftSalary(s), 0);
       const myEarned = objShifts.reduce((sum, s) => sum + s.my_share - calcPartnerShare(s), 0);
       const uniqueWorkers = new Set(objShifts.map((s) => s.worker_id));
       const uniqueDays = new Set(objShifts.map((s) => s.date));
@@ -198,7 +198,7 @@ export default function DetailModal({ type, id, onClose }: DetailModalProps) {
                         <td className="px-3 py-1.5 text-xs">
                           {s.time_start && s.time_end ? `${s.time_start}–${s.time_end}` : '—'}
                         </td>
-                        <td className="px-3 py-1.5">{formatMoney(s.salary)}</td>
+                        <td className="px-3 py-1.5">{formatMoney(getShiftSalary(s))}</td>
                         <td className="px-3 py-1.5 text-blue-600">{formatMoney(s.my_share)}</td>
                       </tr>
                     );

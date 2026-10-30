@@ -5,7 +5,7 @@ import { Plus, Pencil, Trash2, X, Archive } from 'lucide-react';
 import DetailModal from './DetailModal';
 
 export default function Objects() {
-  const { objects, shifts, addObject, updateObject, deleteObject, archiveObject, calcHours, calcPartnerShare } = useStore();
+  const { objects, shifts, addObject, updateObject, deleteObject, archiveObject, calcHours, calcPartnerShare, getShiftSalary } = useStore();
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [sortField, setSortField] = useState<string>('number');
@@ -36,9 +36,9 @@ export default function Objects() {
   };
 
   const handleDelete = (id: string) => {
-    const obj = objects.find((o) => o.id === id);
-    if (confirm(`Удалить объект "${obj?.name}"? Смены не будут удалены.`)) {
-      deleteObject(id);
+    const result = deleteObject(id);
+    if (!result.success) {
+      alert(result.error);
     }
   };
 
@@ -71,7 +71,7 @@ export default function Objects() {
         days_worked: new Set(dates).size,
         shifts_worked: objShifts.length,
         total_hours: objShifts.reduce((sum, s) => sum + calcHours(s), 0),
-        workers_earned: objShifts.reduce((sum, s) => sum + s.salary, 0),
+        workers_earned: objShifts.reduce((sum, s) => sum + getShiftSalary(s), 0),
         my_earned: objShifts.reduce((sum, s) => sum + s.my_share - calcPartnerShare(s), 0)
       };
     });

@@ -12,7 +12,7 @@ function formatMoney(n: number): string {
 }
 
 export default function Statistics() {
-  const { workers, partners, shifts, calcHours, calcPartnerShare, getWorker } = useStore();
+  const { workers, partners, shifts, calcHours, calcPartnerShare, getWorker, getShiftSalary } = useStore();
 
   // Worker stats
   const workerStats = useMemo(() => {
@@ -22,7 +22,7 @@ export default function Statistics() {
         ...w,
         shifts_count: ws.length,
         total_hours: ws.reduce((sum, s) => sum + calcHours(s), 0),
-        total_earned: ws.reduce((sum, s) => sum + s.salary, 0)
+        total_earned: ws.reduce((sum, s) => sum + getShiftSalary(s), 0)
       };
     }).sort((a, b) => b.total_earned - a.total_earned);
   }, [workers, shifts, calcHours]);
