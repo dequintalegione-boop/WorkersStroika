@@ -137,6 +137,51 @@ export function checkIntegrity(state: { workers: Worker[]; partners: Partner[]; 
   return issues;
 }
 
+
+const FINANCE_ACCOUNTS: FinanceAccount[] = ['cash', 'bank', 'other'];
+
+function validateFinanceTransaction(transaction: FinanceTransactionInput, objects: WorkObject[]): string | null {
+  if (!['income', 'expense', 'transfer'].includes(transaction.type)) return 'Выберите корректный тип операции.';
+  if (!transaction.date || !/^\\d{4}-\\d{2}-\\d{2}$/.test(transaction.date) || Number.isNaN(Date.parse(transaction.date + 'T00:00:00'))) {
+    return 'Укажите корректную дату.';
+  }
+  if (!Number.isFinite(transaction.amount) || transaction.amount <= 0) return 'Сумма должна быть больше нуля.';
+  if (!['paid', 'planned'].includes(transaction.status)) return 'Выберите корректный статус операции.';
+  if (transaction.object_id && !objects.some(object => object.id === transaction.object_id)) return 'Выбранный объект не найден.';
+  if (transaction.type === 'transfer') {
+    if (!transaction.from_account || !transaction.to_account || !FINANCE_ACCOUNTS.includes(transaction.from_account) || !FINANCE_ACCOUNTS.includes(transaction.to_account)) {
+      return 'Укажите счёт списания и счёт зачисления.';
+    }
+    if (transaction.from_account === transaction.to_account) return 'Счета перевода должны отличаться.';
+  } else {
+    if (!transaction.category?.trim()) return 'Укажите категорию операции.';
+    if (!transaction.account || !FINANCE_ACCOUNTS.includes(transaction.account)) return 'Выберите счёт операции.';
+  }
+  return null;
+}
+
+function normalizeFinanceTransaction(transaction: FinanceTransactionInput): FinanceTransactionInput {
+  if (transaction.type === 'transfer') {
+    return {
+      ...transaction,
+      category: 'Перевод между счетами',
+      object_id: '',
+      counterparty: transaction.counterparty?.trim() || '',
+      comment: transaction.comment?.trim() || '',
+      account: undefined
+    };
+  }
+  return {
+    ...transaction,
+    category: transaction.category.trim(),
+    object_id: transaction.object_id || '',
+    counterparty: transaction.counterparty?.trim() || '',
+    comment: transaction.comment?.trim() || '',
+    from_account: undefined,
+    to_account: undefined
+  };
+}
+
 const DEFAULT_MODULES: Record<ModuleKey, boolean> = {
   dashboard: true, calendar: true, planning: true, workers: true, partners: true,
   objects: true, shifts: true, statistics: true, archive: true, import: true, payroll: true
