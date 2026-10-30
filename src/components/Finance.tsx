@@ -29,7 +29,7 @@ function emptyForm(): FinanceTransactionInput {
 }
 
 export default function Finance() {
-  const { financeTransactions, objects, addFinanceTransaction, updateFinanceTransaction, deleteFinanceTransaction } = useStore();
+  const { financeTransactions, financeOpeningBalances, setFinanceOpeningBalance, objects, addFinanceTransaction, updateFinanceTransaction, deleteFinanceTransaction } = useStore();
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState<FinanceTransactionInput>(emptyForm());
@@ -50,7 +50,7 @@ export default function Finance() {
   const plannedExpense = financeTransactions.filter(item => item.status === 'planned' && item.type === 'expense').reduce((sum, item) => sum + item.amount, 0);
 
   const balances = useMemo(() => {
-    const result: Record<FinanceAccount, number> = { cash: 0, bank: 0, other: 0 };
+    const result: Record<FinanceAccount, number> = { ...financeOpeningBalances };
     financeTransactions.filter(item => item.status === 'paid').forEach(item => {
       if (item.type === 'income' && item.account) result[item.account] += item.amount;
       if (item.type === 'expense' && item.account) result[item.account] -= item.amount;
@@ -60,7 +60,7 @@ export default function Finance() {
       }
     });
     return result;
-  }, [financeTransactions]);
+  }, [financeTransactions, financeOpeningBalances]);
 
   const categories = useMemo(() => [...new Set(financeTransactions.filter(item => typeFilter === 'all' || item.type === typeFilter).map(item => item.category).filter(Boolean))].sort((a,b) => a.localeCompare(b, 'ru')), [financeTransactions, typeFilter]);
   const visible = useMemo(() => {
@@ -163,6 +163,13 @@ export default function Finance() {
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
           {accountOptions.map(account => <div key={account.value} className="rounded-xl border bg-gray-50 p-4"><p className="text-sm text-gray-500">{account.label}</p><p className={'text-xl font-semibold mt-1 ' + (balances[account.value] < 0 ? 'text-rose-600' : 'text-gray-800')}>{money(balances[account.value])}</p></div>)}
         </div>
+        <details className="rounded-xl border border-dashed p-3">
+          <summary className="cursor-pointer text-sm font-medium text-sky-600">Задать начальные остатки</summary>
+          <p className="text-xs text-gray-500 mt-2 mb-3">Внесите деньги, которые уже были в кассе и на счетах на дату начала ведения журнала. Это не считается новым доходом.</p>
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            {accountOptions.map(account => <label key={account.value} className="text-xs text-gray-500">{account.label}, ₽<input type="number" step="0.01" value={financeOpeningBalances[account.value]} onChange={event => setFinanceOpeningBalance(account.value, Number(event.target.value))} className="mt-1 w-full border rounded-lg px-3 py-2 text-sm" /></label>)}
+          </div>
+        </details>
       </section>
 
       <section className="bg-white rounded-2xl border p-4 md:p-5 space-y-4">

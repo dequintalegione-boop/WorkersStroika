@@ -204,6 +204,7 @@ interface AppState {
   payrollAccruals: PayrollAccrual[];
   workerPayments: WorkerPayment[];
   financeTransactions: FinanceTransaction[];
+  financeOpeningBalances: Record<FinanceAccount, number>;
   theme: Theme;
   setTheme: (theme: Theme) => void;
   appModules: Record<ModuleKey, boolean>;
@@ -214,6 +215,7 @@ interface AppState {
   addFinanceTransaction: (transaction: FinanceTransactionInput) => { success: boolean; error?: string };
   updateFinanceTransaction: (id: string, transaction: FinanceTransactionInput) => { success: boolean; error?: string };
   deleteFinanceTransaction: (id: string) => { success: boolean; error?: string };
+  setFinanceOpeningBalance: (account: FinanceAccount, amount: number) => void;
 
   // Worker CRUD
   addWorker: (w: Omit<Worker, 'id'>) => void;
@@ -285,6 +287,7 @@ export const useStore = create<AppState>()(
       payrollAccruals: [],
       workerPayments: [],
       financeTransactions: [],
+      financeOpeningBalances: { cash: 0, bank: 0, other: 0 },
       theme: 'light' as Theme,
       setTheme: (theme) => set({ theme }),
       appModules: { ...DEFAULT_MODULES },
@@ -502,6 +505,10 @@ export const useStore = create<AppState>()(
         set(state => ({ financeTransactions: state.financeTransactions.filter(t => t.id !== id) }));
         return { success: true };
       },
+      setFinanceOpeningBalance: (account, amount) => {
+        if (!FINANCE_ACCOUNTS.includes(account) || !Number.isFinite(amount)) return;
+        set(state => ({ financeOpeningBalances: { ...state.financeOpeningBalances, [account]: Math.round(amount * 100) / 100 } }));
+      },
 
       getWorker: (id) => get().workers.find((w) => w.id === id),
       getObject: (id) => get().objects.find((o) => o.id === id),
@@ -551,7 +558,8 @@ export const useStore = create<AppState>()(
           planning: state.planning,
           payrollAccruals: state.payrollAccruals,
           workerPayments: state.workerPayments,
-          financeTransactions: state.financeTransactions
+          financeTransactions: state.financeTransactions,
+          financeOpeningBalances: state.financeOpeningBalances
         });
       },
 
@@ -585,6 +593,16 @@ export const useStore = create<AppState>()(
           const normalizedWorkerPayments = (data.workerPayments || []).map((p: any) => normalizeId(p, 'workerPayment'));
           const financeDataProvided = Array.isArray(data.financeTransactions);
           const normalizedFinanceTransactions = (financeDataProvided ? data.financeTransactions : []).map((t: any) => normalizeId(t, 'financeTransaction'));
+          const openingInput = data.financeOpeningBalances && typeof data.financeOpeningBalances === 'object' ? data.financeOpeningBalances : {};
+          const importedFinanceOpeningBalances: Record<FinanceAccount, number> = {
+            cash: openingInput.cash ?? 0, bank: openingInput.bank ?? 0, other: openingInput.other ?? 0
+          };
+          if (!data.financeOpeningBalances && Object.values(get().financeOpeningBalances).some((value: number) => value !== 0)) {
+            warnings.push('Резервная копия не содержит начальных остатков счетов. После импорта они будут установлены в ноль.');
+          }
+          if (!FINANCE_ACCOUNTS.every(account => typeof importedFinanceOpeningBalances[account] === 'number' && Number.isFinite(importedFinanceOpeningBalances[account]))) {
+            return { success: false, error: 'Некорректные начальные остатки финансовых счетов.' };
+          }
           if ((!Array.isArray(data.payrollAccruals) || !Array.isArray(data.workerPayments)) && (get().payrollAccruals.length || get().workerPayments.length)) {
             warnings.push('Файл резервной копии не содержит начислений или выплат. При импорте эти финансовые записи будут заменены пустыми списками.');
           }
@@ -802,7 +820,8 @@ export const useStore = create<AppState>()(
             planning: importedPlanning,
             payrollAccruals: importedPayrollAccruals,
             workerPayments: importedWorkerPayments,
-            financeTransactions: importedFinanceTransactions
+            financeTransactions: importedFinanceTransactions,
+            financeOpeningBalances: importedFinanceOpeningBalances
           });
 
           return { success: true, warnings: warnings.length > 0 ? warnings : undefined };
@@ -820,14 +839,19 @@ export const useStore = create<AppState>()(
           planning: state.planning,
           payrollAccruals: state.payrollAccruals,
           workerPayments: state.workerPayments,
-          financeTransactions: state.financeTransactions
+          financeTransactions: state.financeTransactions,
+          financeOpeningBalances: state.financeOpeningBalances
         }, null, 2);
       }
     }),
     { 
       name: 'brigade-tracker-storage',
-      version: 10,
+      version: 11,
       migrate: (persistedState: any, version: number) => {
+        // v10 → v11: store opening balances separately from income and expenses.
+        if (version < 11) {
+          persistedState.financeOpeningBalances = { cash: 0, bank: 0, other: 0, ...(persistedState.financeOpeningBalances || {}) };
+        }
         // v9 → v10: add financial journal and link past salary payments exactly once.
         if (version < 10) {
           const transactions = Array.isArray(persistedState.financeTransactions) ? persistedState.financeTransactions : [];
