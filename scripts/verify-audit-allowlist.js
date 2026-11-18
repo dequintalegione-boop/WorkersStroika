@@ -21,37 +21,39 @@ if (report.error) {
 
 const packageJson = JSON.parse(fs.readFileSync('package.json', 'utf8'));
 const lock = JSON.parse(fs.readFileSync('package-lock.json', 'utf8'));
-const vulnerabilities = Object.entries(report.vulnerabilities || []);
+const vulnerabilities = Object.entries(report.vulnerabilities || {});
 const knownAdvisory = 'GHSA-fc5q-39xc-vjpf';
+const approvedDevChain = new Set(['picomatch', 'fdir', 'tinyglobby', 'vite']);
 
-function isApprovedPicomatchFinding(name, finding) {
-  if (name !== 'picomatch' || finding.severity !== 'high' || finding.isDirect !== false) return false;
-  const via = JSON.stringify(finding.via || []);
-  if (!via.includes(knownAdvisory)) return false;
+function isApprovedDevOnlyFinding(name, finding) {
+  if (!approvedDevChain.has(name) || finding.severity !== 'high' || finding.isDirect !== false) return false;
+
+  const viaText = JSON.stringify(finding.via || []).toLowerCase();
+  const tiedToPicomatch = viaText.includes(knownAdvisory.toLowerCase()) || viaText.includes('picomatch');
+  if (!tiedToPicomatch) return false;
 
   const nodes = Array.isArray(finding.nodes) ? finding.nodes : [];
   if (nodes.length === 0 || !nodes.every(node => lock.packages[node]?.dev === true)) return false;
 
-  const version = lock.packages['node_modules/picomatch']?.version || '';
-  const parts = version.split('.').map(Number);
+  const picomatch = lock.packages['node_modules/picomatch'];
+  if (!picomatch?.dev || !['node_modules/fdir', 'node_modules/tinyglobby', 'node_modules/vite']
+    .every(path => lock.packages[path]?.dev === true)) return false;
+
+  const parts = String(picomatch.version || '').split('.').map(Number);
   const atOrBelowAffectedMaximum =
     parts.length >= 3 &&
     (parts[0] < 4 || (parts[0] === 4 && (parts[1] < 0 || (parts[1] === 0 && parts[2] <= 7))));
   if (!atOrBelowAffectedMaximum) return false;
 
-  if (packageJson.dependencies?.picomatch || packageJson.dependencies?.vite) return false;
-  if (!packageJson.devDependencies?.vite) return false;
+  // Ни один из уязвимых узлов не должен быть прямой production-зависимостью.
+  if (packageJson.dependencies?.[name]) return false;
+  if (name === 'vite' && !packageJson.devDependencies?.vite) return false;
+  if (name === 'picomatch' && packageJson.dependencies?.picomatch) return false;
 
-  const toolingNodes = [
-    'node_modules/picomatch',
-    'node_modules/fdir',
-    'node_modules/tinyglobby',
-    'node_modules/vite'
-  ];
-  return toolingNodes.every(path => lock.packages[path]?.dev === true);
+  return true;
 }
 
-const unexpected = vulnerabilities.filter(([name, finding]) => !isApprovedPicomatchFinding(name, finding));
+const unexpected = vulnerabilities.filter(([name, finding]) => !isApprovedDevOnlyFinding(name, finding));
 if (unexpected.length > 0) {
   console.error('Обнаружены уязвимости, не входящие в разрешённое временное исключение:');
   for (const [name, finding] of unexpected) {
@@ -63,5 +65,5 @@ if (unexpected.length > 0) {
 if (vulnerabilities.length === 0) {
   console.log('Полный аудит npm: уязвимостей не обнаружено.');
 } else {
-  console.warn('Полный аудит: оставлено только GHSA-fc5q-39xc-vjpf в picomatch, исключительно в dev-инструментах. Исправленная версия пока не опубликована.');
+  console.warn('Полный аудит: обнаружена только цепочка GHSA-fc5q-39xc-vjpf (picomatch → fdir/tinyglobby/Vite) в dev-инструментах. Исправленная версия picomatch пока не опубликована.');
 }
