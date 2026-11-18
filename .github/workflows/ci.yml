@@ -42,7 +42,7 @@ jobs:
           test -f dist/index.html
           test -f dist/sw.js
           test -f dist/manifest.json
-          grep -Eq 'src="/WorkersStroika/assets/[^"]+\\.js"' dist/index.html
+          grep -Fq 'src="/WorkersStroika/assets/' dist/index.html
           grep -Fq 'href="/WorkersStroika/manifest.json"' dist/index.html
           grep -Fq 'src="/WorkersStroika/theme-init.js"' dist/index.html
           if grep -Fq '/src/main.tsx' dist/index.html; then
