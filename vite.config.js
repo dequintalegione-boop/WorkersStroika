@@ -2,7 +2,12 @@ import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 import tailwindcss from "@tailwindcss/vite";
 
+// GitHub Pages проекта публикует приложение в /WorkersStroika/.
+// Для локального запуска оставляем корневой путь без изменения.
+const base = process.env.GITHUB_PAGES === "true" ? "/WorkersStroika/" : "/";
+
 export default defineConfig({
+  base,
   plugins: [react(), tailwindcss()],
   server: {
     host: "127.0.0.1",
