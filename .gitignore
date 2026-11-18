@@ -1,5 +1,43 @@
+# Зависимости и результаты сборки
 node_modules/
 .next/
 dist/
 build/
+
+# Секреты и локальные настройки
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.p12
+*.pfx
+*.crt
+.vs/
+.vscode/
+.idea/
+
+# Локальные пользовательские данные и резервные копии
+local-data/
+user-data/
+exports/
+backups/
+brigade-tracker-*.json
+brigade-tracker-*.csv
+*backup*.json
+*backup*.csv
+*export*.json
+*export*.csv
+*.bak
+*.sqlite
+*.sqlite3
+*.db
+*.dump
+
+# Логи и временные файлы
 *.log
+npm-debug.log*
+*.tmp
+*.swp
+.DS_Store
+Thumbs.db

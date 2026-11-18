@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
+import { validateImportShape } from './lib/importGuard';
 import { v4 as uuidv4 } from 'uuid';
 import { Worker, Partner, WorkObject, Shift, PlanningEntry, PayrollAccrual, WorkerPayment, FinanceTransaction, FinanceTransactionInput, FinanceAccount, Theme, PaymentType, ModuleKey } from './types';
 
@@ -715,6 +716,8 @@ export const useStore = create<AppState>()(
           if (!data || typeof data !== 'object') {
             return { success: false, error: 'Файл не является корректным JSON' };
           }
+          const shapeProblem = validateImportShape(data);
+          if (shapeProblem) return { success: false, error: shapeProblem };
           if (!Array.isArray(data.workers) || !Array.isArray(data.partners) || !Array.isArray(data.objects) || !Array.isArray(data.shifts)) {
             return { success: false, error: 'Неверная структура файла. Ожидаются массивы: workers, partners, objects, shifts' };
           }
