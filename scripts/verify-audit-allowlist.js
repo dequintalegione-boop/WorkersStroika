@@ -56,18 +56,25 @@ function isApprovedDevOnlyFinding(name, finding) {
     const via = JSON.stringify(finding.via || []);
     return via.toLowerCase().includes(knownAdvisory.toLowerCase());
   }
-  if (name === 'fdir' || name === 'tinyglobby') {
-    return viaNames.length > 0 && viaNames.every(item => item === 'picomatch');
+  if (name === 'fdir') {
+    return viaNames.length === 1 && viaNames[0] === 'picomatch' &&
+      Boolean(fdir.peerDependencies?.picomatch);
+  }
+  if (name === 'tinyglobby') {
+    const tinyDeps = tinyglobby.dependencies || {};
+    return viaNames.includes('picomatch') &&
+      viaNames.every(item => item === 'fdir' || item === 'picomatch') &&
+      Boolean(tinyDeps.picomatch && tinyDeps.fdir);
   }
   if (name === 'vite') {
     const viteDeps = vite.dependencies || {};
     const hasExpectedChain =
-      Boolean(viteDeps.fdir && viteDeps.tinyglobby) &&
+      Boolean(viteDeps.fdir && viteDeps.tinyglobby && viteDeps.picomatch) &&
       fdir.peerDependencies?.picomatch &&
       tinyglobby.dependencies?.picomatch;
     return hasExpectedChain &&
-      viaNames.length > 0 &&
-      viaNames.every(item => item === 'fdir' || item === 'tinyglobby');
+      viaNames.includes('picomatch') &&
+      viaNames.every(item => item === 'fdir' || item === 'picomatch' || item === 'tinyglobby');
   }
   return false;
 }
