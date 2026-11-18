@@ -35,6 +35,20 @@ jobs:
         run: npm run build
         env:
           GITHUB_PAGES: "true"
+      - name: Проверка путей Pages-сборки
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -f dist/index.html
+          test -f dist/sw.js
+          test -f dist/manifest.json
+          grep -Eq 'src="/WorkersStroika/assets/[^"]+\\.js"' dist/index.html
+          grep -Fq 'href="/WorkersStroika/manifest.json"' dist/index.html
+          grep -Fq 'src="/WorkersStroika/theme-init.js"' dist/index.html
+          if grep -Fq '/src/main.tsx' dist/index.html; then
+            echo "В Pages-сборке осталась ссылка на исходный TSX вместо собранного JS." >&2
+            exit 1
+          fi
       - name: Аудит зависимостей, входящих в приложение
         run: npm run audit
       - name: Полный аудит; допускается только известная dev-only проблема picomatch без выпущенного исправления
