@@ -32,7 +32,7 @@ jobs:
         env:
           GITHUB_PAGES: "true"
       - name: Загрузка готового сайта
-        uses: actions/upload-pages-artifact@v4
+        uses: actions/upload-pages-artifact@v5
         with:
           path: dist
 
