@@ -30,7 +30,10 @@ function getViaNames(finding) {
 }
 
 function isApprovedDevOnlyFinding(name, finding) {
-  if (!approvedDevChain.has(name) || finding.severity !== 'high' || finding.isDirect !== false) return false;
+  if (!approvedDevChain.has(name) || finding.severity !== 'high') return false;
+  const directDevTool = name === 'vite' && finding.isDirect === true &&
+    Boolean(packageJson.devDependencies?.vite) && !packageJson.dependencies?.vite;
+  if (!directDevTool && finding.isDirect !== false) return false;
 
   const nodes = Array.isArray(finding.nodes) ? finding.nodes : [];
   if (nodes.length === 0 || !nodes.every(node => lock.packages[node]?.dev === true)) return false;
