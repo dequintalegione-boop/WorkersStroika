@@ -1,6 +1,8 @@
 import { useRef, useState } from 'react';
 import { useStore } from '../store';
 import { Download, Upload, FileJson } from 'lucide-react';
+import { toCsv } from '../lib/csv';
+import { checkImportFileSize, parseImportJson } from '../lib/importGuard';
 
 export default function ImportExport() {
   const { exportData, importData, workers, partners, objects, shifts, getInviterName, getShiftSalary, runIntegrityCheck } = useStore();
@@ -21,13 +23,23 @@ export default function ImportExport() {
   const handleImport = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
+    const sizeProblem = checkImportFileSize(file.size);
+    if (sizeProblem) {
+      alert('Импорт отменён: ' + sizeProblem + '\nТекущие данные не изменены.');
+      if (fileRef.current) fileRef.current.value = '';
+      return;
+    }
     const reader = new FileReader();
     reader.onload = (ev) => {
       try {
-        const data = JSON.parse(ev.target?.result as string);
+        const parsed = parseImportJson(String(ev.target?.result ?? ''));
+        if (!parsed.ok) {
+          alert('Импорт отменён: ' + parsed.error + '\nТекущие данные не изменены.');
+          return;
+        }
+        const data = parsed.data;
         if (data.workers && data.partners && data.objects && data.shifts) {
           if (confirm(`Импортировать данные? Рабочих: ${data.workers.length}, Партнёров: ${data.partners.length}, Объектов: ${data.objects.length}, Смен: ${data.shifts.length}. Текущие данные будут ЗАМЕНЕНЫ.`)) {
-            // Скачиваем резервную копию до попытки замены данных.
             const backupBlob = new Blob([exportData()], { type: 'application/json' });
             const backupUrl = URL.createObjectURL(backupBlob);
             const backupLink = document.createElement('a');
@@ -39,9 +51,7 @@ export default function ImportExport() {
             const result = importData(data);
             if (result.success) {
               let message = 'Данные успешно импортированы!';
-              if (result.warnings && result.warnings.length > 0) {
-                message += '\n\nПредупреждения:\n' + result.warnings.join('\n');
-              }
+              if (result.warnings && result.warnings.length > 0) message += '\n\nПредупреждения:\n' + result.warnings.join('\n');
               alert(message);
               setIntegrityIssues(null);
             } else {
@@ -61,7 +71,6 @@ export default function ImportExport() {
 
   // CSV export for Google Sheets compatibility. Quote every cell safely.
   const handleExportCSV = () => {
-    const csvCell = (value: unknown) => `"${String(value ?? '').replace(/"/g, '""')}"`;
     const rows: unknown[][] = [
       ['=== РАБОЧИЕ ==='],
       ['№', 'ФИО', 'Возраст', 'Телефон', 'Кто пригласил', 'Дата начала'],
@@ -84,7 +93,7 @@ export default function ImportExport() {
         s.my_share, s.partner_share_override ?? '', s.review, s.comment
       ])
     ];
-    const csvContent = rows.map(row => row.map(csvCell).join(',')).join('\r\n');
+    const csvContent = toCsv(rows);
     const blob = new Blob(['\uFEFF' + csvContent], { type: 'text/csv;charset=utf-8' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -222,7 +231,7 @@ export default function ImportExport() {
           <div className="border-t border-blue-200 pt-3">
             <h5 className="font-bold mb-1">Способ 2: Запустить локально (для разработчиков)</h5>
             <ol className="list-decimal list-inside space-y-1 ml-2">
-              <li>Установите <a href="https://nodejs.org" target="_blank" className="underline font-medium">Node.js</a> (версия 18+)</li>
+              <li>Установите <a href="https://nodejs.org" target="_blank" className="underline font-medium">Node.js</a> (версия 22+)</li>
               <li>Скачайте исходный код проекта</li>
               <li>Откройте терминал в папке проекта</li>
               <li>Выполните: <code className="bg-blue-100 px-1.5 py-0.5 rounded">npm install</code></li>

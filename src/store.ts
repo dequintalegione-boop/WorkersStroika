@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import { v4 as uuidv4 } from 'uuid';
+import { validateImportShape } from './lib/importGuard';
 import { Worker, Partner, WorkObject, Shift, PlanningEntry, PayrollAccrual, WorkerPayment, FinanceTransaction, FinanceTransactionInput, FinanceAccount, Theme, PaymentType, ModuleKey } from './types';
 
 // Единая функция расчёта зарплаты за смену
@@ -211,7 +211,7 @@ function syncPayrollLedger(
     }
     if (!existing) {
       const item: PayrollAccrual = {
-        id: uuidv4(), shift_id: shift.id, worker_id: shift.worker_id,
+        id: crypto.randomUUID(), shift_id: shift.id, worker_id: shift.worker_id,
         object_id: shift.object_id || '', date: shift.date, amount,
         created_at: now, updated_at: now
       };
@@ -270,7 +270,7 @@ function syncPayrollLedger(
     const old = oldPayables.get(accrual.id);
     const worker = workers.find(item => item.id === accrual.worker_id);
     payables.push({
-      id: old?.id || uuidv4(),
+      id: old?.id || crypto.randomUUID(),
       type: 'expense',
       date: accrual.date,
       amount,
@@ -408,7 +408,7 @@ export const useStore = create<AppState>()(
       setModuleEnabled: (module, enabled) => set((state) => ({ appModules: { ...state.appModules, [module]: enabled } })),
 
       addWorker: (w) => set((state) => ({
-        workers: [...state.workers, { ...w, id: uuidv4() }]
+        workers: [...state.workers, { ...w, id: crypto.randomUUID() }]
       })),
       updateWorker: (id, w) => set((state) => ({
         // Защита ID: не позволяем менять id
@@ -428,7 +428,7 @@ export const useStore = create<AppState>()(
       },
 
       addPartner: (p) => set((state) => ({
-        partners: [...state.partners, { ...p, id: uuidv4() }]
+        partners: [...state.partners, { ...p, id: crypto.randomUUID() }]
       })),
       updatePartner: (id, p) => set((state) => ({
         partners: state.partners.map((x) => x.id === id ? { ...x, ...p, id: x.id } : x)
@@ -444,7 +444,7 @@ export const useStore = create<AppState>()(
       },
 
       addObject: (o) => set((state) => ({
-        objects: [...state.objects, { ...o, id: uuidv4() }]
+        objects: [...state.objects, { ...o, id: crypto.randomUUID() }]
       })),
       updateObject: (id, o) => set((state) => ({
         objects: state.objects.map((x) => x.id === id ? { ...x, ...o, id: x.id } : x)
@@ -468,7 +468,7 @@ export const useStore = create<AppState>()(
           s = { ...s, salary: calcShiftSalary(s) };
         }
         const state = get();
-        const shifts = [...state.shifts, { ...s, id: uuidv4() }];
+        const shifts = [...state.shifts, { ...s, id: crypto.randomUUID() }];
         const ledger = syncPayrollLedger(shifts, state.payrollAccruals, state.workerPayments, state.financeTransactions, state.workers);
         set({ shifts, payrollAccruals: ledger.payrollAccruals, financeTransactions: ledger.financeTransactions });
         return { success: true };
@@ -477,7 +477,7 @@ export const useStore = create<AppState>()(
         const hasVolume = shiftsArr.some(s => s.payment_type === 'volume');
         if (hasVolume) return { success: false, error: 'Массовое создание объёмных смен запрещено. Каждый рабочий должен иметь индивидуальный объём.' };
         const state = get();
-        const shifts = [...state.shifts, ...shiftsArr.map(s => ({ ...s, id: uuidv4() }))];
+        const shifts = [...state.shifts, ...shiftsArr.map(s => ({ ...s, id: crypto.randomUUID() }))];
         const ledger = syncPayrollLedger(shifts, state.payrollAccruals, state.workerPayments, state.financeTransactions, state.workers);
         set({ shifts, payrollAccruals: ledger.payrollAccruals, financeTransactions: ledger.financeTransactions });
         return { success: true };
@@ -511,7 +511,7 @@ export const useStore = create<AppState>()(
       },
 
       addPlanning: (p) => set((state) => ({
-        planning: [...state.planning, { ...p, id: uuidv4() }]
+        planning: [...state.planning, { ...p, id: crypto.randomUUID() }]
       })),
       updatePlanning: (id, p) => set((state) => ({
         planning: state.planning.map((x) => x.id === id ? { ...x, ...p, id: x.id } : x)
@@ -555,10 +555,10 @@ export const useStore = create<AppState>()(
         if (!Number.isFinite(payment.amount) || payment.amount <= 0) return { success: false, error: 'Сумма должна быть больше нуля.' };
         if (!['salary', 'advance'].includes(payment.kind)) return { success: false, error: 'Неизвестный тип выплаты.' };
         if (!['cash', 'bank', 'other'].includes(payment.method)) return { success: false, error: 'Неизвестный способ выплаты.' };
-        const item: WorkerPayment = { ...payment, amount: Math.round(payment.amount * 100) / 100, id: uuidv4(), created_at: new Date().toISOString() };
+        const item: WorkerPayment = { ...payment, amount: Math.round(payment.amount * 100) / 100, id: crypto.randomUUID(), created_at: new Date().toISOString() };
         const worker = state.workers.find(w => w.id === payment.worker_id);
         const financeItem: FinanceTransaction = {
-          id: uuidv4(), type: 'expense', date: item.date, amount: item.amount,
+          id: crypto.randomUUID(), type: 'expense', date: item.date, amount: item.amount,
           category: item.kind === 'advance' ? 'Авансы рабочим' : 'Зарплата рабочим',
           object_id: '', counterparty: worker?.full_name || 'Рабочий',
           account: item.method === 'cash' ? 'cash' : item.method === 'bank' ? 'bank' : 'other',
@@ -583,7 +583,7 @@ export const useStore = create<AppState>()(
         const error = validateFinanceTransaction(transaction, get().objects);
         if (error) return { success: false, error };
         const now = new Date().toISOString();
-        const item: FinanceTransaction = { ...normalizeFinanceTransaction(transaction), id: uuidv4(), source_type: 'manual', created_at: now, updated_at: now };
+        const item: FinanceTransaction = { ...normalizeFinanceTransaction(transaction), id: crypto.randomUUID(), source_type: 'manual', created_at: now, updated_at: now };
         set(state => ({ financeTransactions: [...state.financeTransactions, item] }));
         return { success: true };
       },
@@ -623,7 +623,7 @@ export const useStore = create<AppState>()(
           const now = new Date().toISOString();
           const paidDate = now.slice(0, 10);
           const payment: WorkerPayment = {
-            id: uuidv4(), worker_id: accrual.worker_id, date: paidDate,
+            id: crypto.randomUUID(), worker_id: accrual.worker_id, date: paidDate,
             amount: existing.amount, kind: 'salary',
             method: existing.account || 'cash',
             accrual_id: accrual.id,
@@ -715,6 +715,8 @@ export const useStore = create<AppState>()(
           if (!data || typeof data !== 'object') {
             return { success: false, error: 'Файл не является корректным JSON' };
           }
+          const shapeProblem = validateImportShape(data);
+          if (shapeProblem) return { success: false, error: shapeProblem };
           if (!Array.isArray(data.workers) || !Array.isArray(data.partners) || !Array.isArray(data.objects) || !Array.isArray(data.shifts)) {
             return { success: false, error: 'Неверная структура файла. Ожидаются массивы: workers, partners, objects, shifts' };
           }
@@ -723,7 +725,7 @@ export const useStore = create<AppState>()(
           const normalizeId = (item: any, entityType: string): any => {
             if (!item.id || typeof item.id !== 'string') {
               warnings.push(`Создан новый ID для ${entityType} (отсутствовал)`);
-              return { ...item, id: uuidv4() };
+              return { ...item, id: crypto.randomUUID() };
             }
             return item;
           };
@@ -906,7 +908,7 @@ export const useStore = create<AppState>()(
             const worker = importedWorkers.find((w: any) => w.id === payment.worker_id);
             const stamp = payment.created_at || new Date().toISOString();
             importedFinanceTransactions.push({
-              id: uuidv4(), type: 'expense', date: payment.date, amount: payment.amount,
+              id: crypto.randomUUID(), type: 'expense', date: payment.date, amount: payment.amount,
               category: payment.kind === 'advance' ? 'Авансы рабочим' : 'Зарплата рабочим',
               object_id: '', counterparty: worker?.full_name || 'Рабочий',
               account: payment.method === 'cash' ? 'cash' : payment.method === 'bank' ? 'bank' : 'other',
@@ -1024,7 +1026,7 @@ export const useStore = create<AppState>()(
             const worker = workers.find((w: any) => w.id === payment.worker_id);
             const stamp = payment.created_at || new Date().toISOString();
             transactions.push({
-              id: uuidv4(), type: 'expense', date: payment.date, amount: payment.amount,
+              id: crypto.randomUUID(), type: 'expense', date: payment.date, amount: payment.amount,
               category: payment.kind === 'advance' ? 'Авансы рабочим' : 'Зарплата рабочим',
               object_id: '', counterparty: worker?.full_name || 'Рабочий',
               account: payment.method === 'cash' ? 'cash' : payment.method === 'bank' ? 'bank' : 'other',

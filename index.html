@@ -3,6 +3,8 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self' ws://127.0.0.1:3000 ws://127.0.0.1:5173; object-src 'none'; base-uri 'self'; form-action 'self'; frame-src 'none'" />
+    <meta name="referrer" content="no-referrer" />
     <title>БригадаУчёт — Учёт рабочих бригад и подработок</title>
     <meta name="description" content="Учёт рабочих бригад и подработок: смены, заработки, партнёры, объекты, дашборд" />
     <meta name="theme-color" content="#302c40" />
@@ -11,90 +13,12 @@
     <meta name="apple-mobile-web-app-title" content="БригадаУчёт" />
     <link rel="manifest" href="/manifest.json" />
     <link rel="icon" type="image/svg+xml" href="/icon.svg" />
-    <script>
-      // Apply the saved theme before React paints, including the X-Analytics layout.
-      (function () {
-        function applyTheme(theme) {
-          if (!["light", "dark", "modern-dark"].includes(theme)) theme = "light";
-          var root = document.documentElement;
-          root.classList.remove("light", "dark", "modern-dark");
-          if (theme === "light") root.classList.add("light");
-          if (theme === "dark") root.classList.add("dark");
-          if (theme === "modern-dark") root.classList.add("dark", "modern-dark");
-          root.setAttribute("data-theme", theme);
-          return theme;
-        }
-        var theme = "light";
-        try {
-          var saved = JSON.parse(localStorage.getItem("brigade-tracker-storage") || "{}");
-          theme = saved && saved.state && saved.state.theme ? saved.state.theme : "light";
-        } catch (error) {}
-        applyTheme(theme);
-        if (window.self !== window.top) {
-          window.addEventListener("message", function (event) {
-            if (event.data && typeof event.data.theme === "string") applyTheme(event.data.theme);
-          });
-        }
-      })();
-    </script>
-    <link
-      rel="stylesheet"
-      href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css"
-    />
+    <script src="/theme-init.js"></script>
     <style>
-      /* 内联样式确保主题色立即生效，避免闪烁 */
-      html,
-      body {
-        margin: 0;
-        padding: 0;
-        width: 100%;
-        height: 100%;
-      }
-      html.light,
-      html.light body {
-        background-color: #ffffff !important;
-        color: #000000;
-      }
-      html.dark,
-      html.dark body {
-        background-color: #1a1a1a !important;
-        color: #ffffff;
-      }
+      html, body { margin: 0; padding: 0; width: 100%; height: 100%; }
+      html.light, html.light body { background-color: #ffffff !important; color: #000000; }
+      html.dark, html.dark body { background-color: #1a1a1a !important; color: #ffffff; }
     </style>
-      <script>
-      (function () {
-        if (window.self === window.top) return;
-        var reported = {};
-        window.addEventListener("error", function (event) {
-          // 资源加载失败的 error 事件没有 message，此处仅上报 JS 运行时错误
-          if (!event || !event.message) return;
-          var key =
-            event.message + "|" + (event.filename || "") + "|" + (event.lineno || 0);
-          if (reported[key]) return; // 相同错误只上报一次，避免渲染循环刷屏
-          reported[key] = true;
-          try {
-            window.parent.postMessage(
-              {
-                type: "sandbox-runtime-error",
-                payload: {
-                  message: String(event.message).slice(0, 500),
-                  filename: event.filename || "",
-                  lineno: event.lineno || 0,
-                  colno: event.colno || 0,
-                  stack:
-                    event.error && event.error.stack
-                      ? String(event.error.stack).slice(0, 2000)
-                      : ""
-                }
-              },
-              "*"
-            );
-          } catch (e) {
-            /* 上报失败不影响页面运行 */
-          }
-        });
-      })();
-    </script>
   </head>
   <body>
     <div id="root"></div>
