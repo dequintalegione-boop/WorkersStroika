@@ -31,8 +31,20 @@ jobs:
         run: npm test
       - name: Production-сборка
         run: npm run build
-      - name: Аудит всех зависимостей, включая devDependencies
+      - name: Аудит зависимостей, входящих в приложение
         run: npm run audit
+      - name: Полный аудит; допускается только известная dev-only проблема picomatch без выпущенного исправления
+        shell: bash
+        run: |
+          set +e
+          npm audit --json > /tmp/npm-audit.json
+          audit_status=$?
+          set -e
+          if [ ! -s /tmp/npm-audit.json ]; then
+            echo "npm audit не вернул JSON (код: $audit_status)" >&2
+            exit 1
+          fi
+          node scripts/verify-audit-allowlist.js /tmp/npm-audit.json
 
   secrets:
     runs-on: ubuntu-latest
